@@ -1,0 +1,81 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kyro
+      POSTGRES_PASSWORD: kyro_dev_password
+      POSTGRES_DB: kyro
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kyro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Production-grade inference engine. Requires an NVIDIA GPU host.
+  # For CPU-only local dev, comment this out and run Ollama instead
+  # (see README "Swapping in Ollama for CPU-only dev").
+  vllm:
+    image: vllm/vllm-openai:latest
+    command: >
+      --model mistralai/Mistral-7B-Instruct-v0.3
+      --host 0.0.0.0
+      --port 8000
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - vllm_cache:/root/.cache/huggingface
+
+  api:
+    build: ./apps/api
+    env_file: ./apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://kyro:kyro_dev_password@postgres:5432/kyro
+      REDIS_URL: redis://redis:6379
+      INFERENCE_BASE_URL: http://vllm:8000/v1
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build: ./apps/web
+    env_file: ./apps/web/.env.local
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:
+  vllm_cache:

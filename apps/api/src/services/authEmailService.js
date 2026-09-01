@@ -75,3 +75,41 @@ export async function sendMagicLinkEmail({ email }) {
     ),
   });
 }
+
+/**
+ * Domain used for accounts created without a real email address (e.g. a
+ * school-issued Google Workspace account that can't receive outside mail,
+ * or someone who just doesn't have an email at all). Supabase's auth system
+ * requires *some* unique email-shaped identifier per user, so we mint one
+ * deterministically from the username instead of asking for a real inbox.
+ * `.invalid` is the IANA-reserved TLD specifically meant for addresses that
+ * are guaranteed not to resolve — nothing will ever try to deliver here.
+ */
+export const USERNAME_ACCOUNT_DOMAIN = "users.kyro.invalid";
+
+export function usernameToSyntheticEmail(username) {
+  return `${username.toLowerCase()}@${USERNAME_ACCOUNT_DOMAIN}`;
+}
+
+/**
+ * Creates a fully confirmed account from a username + password, with no
+ * email step at all. Unlike sendSignupConfirmationEmail(), this calls
+ * createUser() directly (not generateLink()) and sets email_confirm: true
+ * up front, since there's no inbox to send a confirmation link to.
+ * Returns the synthetic email so the caller can immediately sign the user
+ * in client-side with supabase.auth.signInWithPassword().
+ */
+export async function createUsernameAccount({ username, password }) {
+  const syntheticEmail = usernameToSyntheticEmail(username);
+
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email: syntheticEmail,
+    password,
+    email_confirm: true,
+    user_metadata: { username: username.toLowerCase(), signup_method: "username" },
+  });
+
+  if (error) throw error;
+
+  return { email: syntheticEmail, userId: data.user.id };
+}

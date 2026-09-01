@@ -1,4 +1,4 @@
-import { requireApiKeyOrSession } from "../../middleware/auth.js";
+import { requireApiKeyOrSessionOrGuest } from "../../middleware/auth.js";
 import { enforceRateLimit } from "../../middleware/rateLimit.js";
 import { getActiveConfig } from "../../services/systemConfigService.js";
 import { callInference } from "../../services/inferenceClient.js";
@@ -12,15 +12,16 @@ import { prisma } from "../../lib/prisma.js";
  * config, set by the Admin Panel), and proxies to the self-hosted inference
  * engine — streaming tokens back over SSE when `stream: true`.
  *
- * Auth: accepts EITHER a developer API key (kyro_sk_live_...) OR a
- * first-party Supabase session JWT from the web chat UI. Both are subject
- * to token-bucket rate limiting keyed to their respective identities.
+ * Auth: accepts a developer API key (kyro_sk_live_...), a first-party
+ * Supabase session JWT from the web chat UI, OR nothing at all — anonymous
+ * callers are let through as guests, rate-limited by IP, so people can try
+ * Kyro from the web chat without creating an account first.
  */
 export default async function chatCompletionsRoute(fastify) {
   fastify.post(
     "/v1/chat/completions",
     {
-      preHandler: [requireApiKeyOrSession, enforceRateLimit],
+      preHandler: [requireApiKeyOrSessionOrGuest, enforceRateLimit],
       schema: {
         description: "Create a chat completion. Drop-in compatible with the OpenAI SDK — just change baseURL and apiKey.",
         tags: ["chat"],

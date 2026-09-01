@@ -26,5 +26,8 @@ export const env = {
     free: Number(process.env.RATE_LIMIT_FREE || 20),
     pro: Number(process.env.RATE_LIMIT_PRO || 120),
     enterprise: Number(process.env.RATE_LIMIT_ENTERPRISE || 1000),
+    // Unauthenticated visitors on the web chat — no account at all. Kept
+    // tight since it's keyed by IP and has no account behind it to suspend.
+    guest: Number(process.env.RATE_LIMIT_GUEST || 8),
   },
 };

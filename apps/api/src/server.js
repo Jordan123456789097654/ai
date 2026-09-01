@@ -14,7 +14,9 @@ import adminRoutes from "./routes/admin.js";
 import conversationsRoutes from "./routes/conversations.js";
 import authRoutes from "./routes/auth.js";
 
-const fastify = Fastify({ logger: true });
+// trustProxy: true so request.ip reflects the real visitor (from X-Forwarded-For)
+// rather than Render's load balancer — needed for per-IP guest rate limiting.
+const fastify = Fastify({ logger: true, trustProxy: true });
 
 // ── Security headers ──────────────────────────────────────────────────────────
 // Disable CSP so Swagger UI's inline scripts still work in dev.

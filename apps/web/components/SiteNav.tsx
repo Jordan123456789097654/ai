@@ -6,11 +6,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
 
-const BASE_LINKS = [
+// Chat and Docs are open to everyone — chat works without an account.
+const PUBLIC_LINKS = [
   { href: "/chat", label: "Chat" },
-  { href: "/dev", label: "Developer portal" },
   { href: "/docs", label: "Docs" },
 ];
+
+// Requires a signed-in account.
+const AUTHED_LINKS = [{ href: "/dev", label: "Developer portal" }];
 
 export default function SiteNav() {
   const pathname = usePathname();
@@ -59,7 +62,8 @@ export default function SiteNav() {
   }
 
   const links = [
-    ...BASE_LINKS,
+    ...PUBLIC_LINKS,
+    ...(user ? AUTHED_LINKS : []),
     ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
   ];
 
@@ -71,21 +75,20 @@ export default function SiteNav() {
         </Link>
 
         <nav className="flex items-center gap-1">
-          {user &&
-            links.map((link) => {
-              const active = pathname?.startsWith(link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                    active ? "text-ink bg-accent" : "text-muted hover:text-text"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
+          {links.map((link) => {
+            const active = pathname?.startsWith(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                  active ? "text-ink bg-accent" : "text-muted hover:text-text"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
 
           {user ? (
             <button

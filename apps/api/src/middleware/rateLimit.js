@@ -10,19 +10,25 @@ const TIER_LIMITS = {
 /**
  * Fastify preHandler: enforces a per-caller token-bucket rate limit.
  *
- * Works in two modes depending on how the caller authenticated:
+ * Works in three modes depending on how the caller authenticated:
  *   - API key auth  → bucket key = apiKey.id, limit from key override or tier
  *   - Session auth  → bucket key = "session:{user.id}", limit from user tier
+ *   - Guest (no auth, /v1/chat/completions only) → bucket key = "guest:{ip}",
+ *     limit from RATE_LIMIT_GUEST
  *
- * Requires requireApiKey or requireApiKeyOrSession to have already run.
+ * Requires requireApiKey, requireApiKeyOrSession, or
+ * requireApiKeyOrSessionOrGuest to have already run.
  */
 export async function enforceRateLimit(request, reply) {
-  const { apiKey, user } = request;
-  const limit = apiKey?.rateLimitOverride ?? TIER_LIMITS[user.tier] ?? TIER_LIMITS.free;
+  const { apiKey, user, isGuest } = request;
 
-  // Use a distinct bucket key per auth type so API key and session quotas
-  // are tracked independently for the same user.
-  const bucketKey = apiKey ? apiKey.id : `session:${user.id}`;
+  const limit = isGuest
+    ? TIER_LIMITS.guest
+    : apiKey?.rateLimitOverride ?? TIER_LIMITS[user.tier] ?? TIER_LIMITS.free;
+
+  // Use a distinct bucket key per auth type so API key, session, and guest
+  // quotas are tracked independently.
+  const bucketKey = isGuest ? `guest:${request.ip}` : apiKey ? apiKey.id : `session:${user.id}`;
 
   const { allowed, remaining } = await checkTokenBucket(bucketKey, limit);
 
@@ -32,7 +38,9 @@ export async function enforceRateLimit(request, reply) {
   if (!allowed) {
     return reply.code(429).send({
       error: {
-        message: `Rate limit exceeded. Your ${user.tier} tier allows ${limit} requests/min.`,
+        message: isGuest
+          ? `Rate limit exceeded. Sign in for a higher limit than the ${limit} requests/min guests get.`
+          : `Rate limit exceeded. Your ${user.tier} tier allows ${limit} requests/min.`,
         type: "rate_limit_error",
         code: 429,
       },

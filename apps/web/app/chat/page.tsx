@@ -3,14 +3,27 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { Send } from "lucide-react";
-import { getSessionToken } from "../../lib/supabaseClient";
+import Link from "next/link";
+import { supabase, getSessionToken } from "../../lib/supabaseClient";
 import { apiFetch, API_BASE } from "../../lib/api";
 import ChatSidebar from "../../components/ChatSidebar";
-import AuthGuard from "../../components/AuthGuard";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-function ChatPageInner() {
+export default function ChatPage() {
+  // No AuthGuard here on purpose — chat works for signed-out guests too.
+  // We still track whether someone's signed in, just to decide whether to
+  // show history/sidebar or a "sign in to save your chats" nudge.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null); // null = not checked yet
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(!!session);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -64,12 +77,16 @@ function ChatPageInner() {
     setIsStreaming(true);
     setError(null);
 
+    // History only exists for signed-in users — guests just chat, nothing
+    // to persist, and no point making a doomed authenticated request.
     let convoId: string | null = null;
-    try {
-      convoId = await ensureConversation(text);
-      await persistMessage(convoId, "user", text);
-    } catch {
-      // If history persistence fails, the chat itself still works below.
+    if (signedIn) {
+      try {
+        convoId = await ensureConversation(text);
+        await persistMessage(convoId, "user", text);
+      } catch {
+        // If history persistence fails, the chat itself still works below.
+      }
     }
 
     const token = await getSessionToken();
@@ -133,13 +150,22 @@ function ChatPageInner() {
 
   return (
     <div className="flex">
-      <ChatSidebar activeId={conversationId} onSelect={selectConversation} onNew={startNewChat} />
+      {signedIn && <ChatSidebar activeId={conversationId} onSelect={selectConversation} onNew={startNewChat} />}
 
       <div className="mx-auto max-w-3xl px-6 flex flex-col h-[calc(100vh-73px)] flex-1">
-        <div className="flex items-center py-4 border-b border-border">
+        <div className="flex items-center justify-between py-4 border-b border-border">
           <span className="font-mono text-sm text-muted">
             {conversationId ? "conversation" : "new chat"}
           </span>
+          {signedIn === false && (
+            <span className="text-xs text-muted">
+              Chatting as a guest —{" "}
+              <Link href="/login" className="text-accent hover:underline">
+                sign in
+              </Link>{" "}
+              to save your chats
+            </span>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto py-6 space-y-6">
@@ -197,13 +223,5 @@ function ChatPageInner() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function ChatPage() {
-  return (
-    <AuthGuard>
-      <ChatPageInner />
-    </AuthGuard>
   );
 }

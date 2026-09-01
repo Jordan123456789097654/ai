@@ -4,12 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import { API_BASE } from "../../lib/api";
+import { isValidUsername, usernameToSyntheticEmail } from "../../lib/username";
+
+type Mode = "password" | "magic" | "username";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"password" | "magic">("password");
+  const [username, setUsername] = useState("");
+  const [mode, setMode] = useState<Mode>("password");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [magicSent, setMagicSent] = useState(false);
@@ -25,6 +29,7 @@ export default function LoginPage() {
     if (!res.ok) {
       throw new Error(data?.error?.message || "Something went wrong. Please try again.");
     }
+    return data;
   }
 
   async function handlePassword(e: React.FormEvent) {
@@ -66,6 +71,48 @@ export default function LoginPage() {
     setLoading(false);
   }
 
+  /**
+   * No-email account: username + password only. Doesn't touch the confirmation
+   * flow at all — the backend creates an already-confirmed account and hands
+   * back the synthetic email, which we immediately sign in with.
+   */
+  async function handleUsernameSignUp(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    if (!isValidUsername(username)) {
+      setError("Username must be 3-24 characters: letters, numbers, _ or - only.");
+      setLoading(false);
+      return;
+    }
+    try {
+      const { email: syntheticEmail } = await postAuth("/auth/signup-username", { username, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: syntheticEmail, password });
+      if (error) throw new Error(error.message);
+      router.push("/chat");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setLoading(false);
+    }
+  }
+
+  /** Sign in to an existing username account — no backend round trip needed, just derive the same synthetic email. */
+  async function handleUsernameSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    const { error } = await supabase.auth.signInWithPassword({
+      email: usernameToSyntheticEmail(username),
+      password,
+    });
+    if (error) {
+      setError("Incorrect username or password.");
+      setLoading(false);
+    } else {
+      router.push("/chat");
+    }
+  }
+
   if (magicSent) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -97,7 +144,11 @@ export default function LoginPage() {
 
         {/* Mode toggle */}
         <div className="flex rounded border border-border overflow-hidden text-sm">
-          {(["password", "magic"] as const).map((m) => (
+          {([
+            ["password", "Password"],
+            ["magic", "Magic link"],
+            ["username", "No email"],
+          ] as const).map(([m, label]) => (
             <button
               key={m}
               onClick={() => { setMode(m); setError(""); }}
@@ -105,28 +156,31 @@ export default function LoginPage() {
                 mode === m ? "bg-surface-raised text-text" : "text-muted hover:text-text"
               }`}
             >
-              {m === "password" ? "Password" : "Magic link"}
+              {label}
             </button>
           ))}
         </div>
 
-        <form
-          onSubmit={mode === "magic" ? handleMagicLink : handlePassword}
-          className="space-y-4"
-        >
-          <div>
-            <label className="block text-sm text-muted mb-1.5">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full bg-surface border border-border rounded px-3 py-2.5 text-sm outline-none focus:border-accent"
-            />
-          </div>
+        {mode === "username" ? (
+          <form onSubmit={handleUsernameSignIn} className="space-y-4">
+            <p className="text-muted text-xs -mt-2">
+              For accounts without a working email — like most school addresses. No confirmation email is sent.
+            </p>
 
-          {mode === "password" && (
+            <div>
+              <label className="block text-sm text-muted mb-1.5">Username</label>
+              <input
+                type="text"
+                required
+                minLength={3}
+                maxLength={24}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="yourname"
+                className="w-full bg-surface border border-border rounded px-3 py-2.5 text-sm outline-none focus:border-accent"
+              />
+            </div>
+
             <div>
               <label className="block text-sm text-muted mb-1.5">Password</label>
               <input
@@ -138,37 +192,91 @@ export default function LoginPage() {
                 className="w-full bg-surface border border-border rounded px-3 py-2.5 text-sm outline-none focus:border-accent"
               />
             </div>
-          )}
 
-          {error && (
-            <p className="text-danger text-sm bg-surface border border-danger/30 rounded px-3 py-2">
-              {error}
-            </p>
-          )}
+            {error && (
+              <p className="text-danger text-sm bg-surface border border-danger/30 rounded px-3 py-2">
+                {error}
+              </p>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-accent text-ink rounded font-medium text-sm disabled:opacity-50"
-          >
-            {loading
-              ? "…"
-              : mode === "magic"
-              ? "Send magic link"
-              : "Sign in"}
-          </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 bg-accent text-ink rounded font-medium text-sm disabled:opacity-50"
+            >
+              {loading ? "…" : "Sign in"}
+            </button>
 
-          {mode === "password" && (
             <button
               type="button"
-              onClick={handleSignUp}
+              onClick={handleUsernameSignUp}
               disabled={loading}
               className="w-full py-2.5 border border-border rounded text-sm text-muted hover:text-text disabled:opacity-50"
             >
               Create account
             </button>
-          )}
-        </form>
+          </form>
+        ) : (
+          <form
+            onSubmit={mode === "magic" ? handleMagicLink : handlePassword}
+            className="space-y-4"
+          >
+            <div>
+              <label className="block text-sm text-muted mb-1.5">Email</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full bg-surface border border-border rounded px-3 py-2.5 text-sm outline-none focus:border-accent"
+              />
+            </div>
+
+            {mode === "password" && (
+              <div>
+                <label className="block text-sm text-muted mb-1.5">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-surface border border-border rounded px-3 py-2.5 text-sm outline-none focus:border-accent"
+                />
+              </div>
+            )}
+
+            {error && (
+              <p className="text-danger text-sm bg-surface border border-danger/30 rounded px-3 py-2">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 bg-accent text-ink rounded font-medium text-sm disabled:opacity-50"
+            >
+              {loading
+                ? "…"
+                : mode === "magic"
+                ? "Send magic link"
+                : "Sign in"}
+            </button>
+
+            {mode === "password" && (
+              <button
+                type="button"
+                onClick={handleSignUp}
+                disabled={loading}
+                className="w-full py-2.5 border border-border rounded text-sm text-muted hover:text-text disabled:opacity-50"
+              >
+                Create account
+              </button>
+            )}
+          </form>
+        )}
       </div>
     </div>
   );

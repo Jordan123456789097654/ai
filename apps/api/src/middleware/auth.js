@@ -128,3 +128,29 @@ export async function requireApiKeyOrSession(request, reply) {
     });
   }
 }
+
+/**
+ * Fastify preHandler for /v1/chat/completions ONLY: same as
+ * requireApiKeyOrSession, but when there's no Authorization header at all,
+ * lets the request through as an anonymous guest instead of rejecting it.
+ * This is what powers "try Kyro without signing up" on the web chat.
+ *
+ * - API key  → request.apiKey + request.user (rate-limited by key)
+ * - Session  → request.user only                (rate-limited by user tier)
+ * - Nothing  → request.isGuest = true, request.user is undefined
+ *              (rate-limited by IP, see enforceRateLimit)
+ *
+ * A malformed/expired token is still rejected — guest mode only kicks in
+ * when no credential was offered at all, not when a bad one was.
+ */
+export async function requireApiKeyOrSessionOrGuest(request, reply) {
+  const authHeader = request.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (!token) {
+    request.isGuest = true;
+    return;
+  }
+
+  return requireApiKeyOrSession(request, reply);
+}

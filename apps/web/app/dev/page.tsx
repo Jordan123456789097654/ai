@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Copy, Trash2, Plus, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import AuthGuard from "../../components/AuthGuard";
@@ -138,8 +138,8 @@ function DevPortalInner() {
               </tr>
             )}
             {keys.map((k) => (
-              <>
-                <tr key={k.id} className="border-t border-border">
+              <Fragment key={k.id}>
+                <tr className="border-t border-border">
                   <td className="px-4 py-3">{k.name}</td>
                   <td className="px-4 py-3 font-mono text-muted">{k.keyPrefix}…</td>
                   <td className="px-4 py-3 text-muted">
@@ -210,7 +210,7 @@ function DevPortalInner() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

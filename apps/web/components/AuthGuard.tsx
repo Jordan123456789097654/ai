@@ -28,15 +28,21 @@ export default function AuthGuard({ children, adminOnly = false }: AuthGuardProp
         const res = await fetch(`${API_BASE}/me`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
-        if (res.ok) {
-          const user = await res.json();
-          if (user.role !== "admin") {
-            router.replace("/");
-            return false;
-          }
+        if (!res.ok) {
+          // Couldn't confirm admin role (401/500/etc) — deny by default
+          // rather than letting an unverified session through.
+          router.replace("/");
+          return false;
+        }
+        const user = await res.json();
+        if (user.role !== "admin") {
+          router.replace("/");
+          return false;
         }
       } catch {
-        // Network error — still let the admin page's own 403 handle it
+        // Network error — deny by default, same as above.
+        router.replace("/");
+        return false;
       }
       return true;
     }
@@ -79,7 +85,15 @@ export default function AuthGuard({ children, adminOnly = false }: AuthGuardProp
 
     const fallbackTimer = setTimeout(() => {
       if (cancelled || resolved) return;
-      supabase.auth.getSession().then(({ data }) => handleSession(data.session));
+      supabase.auth
+        .getSession()
+        .then(({ data }) => handleSession(data.session))
+        .catch(() => {
+          // If even this direct call fails (network error, blocked request,
+          // misconfigured client), don't leave the page stuck on "Loading…"
+          // forever — treat it as "no session" and send the user to /login.
+          handleSession(null);
+        });
     }, 1500);
 
     return () => {

@@ -23,7 +23,7 @@ export async function enforceRateLimit(request, reply) {
   const { apiKey, user, isGuest } = request;
 
   const limit = isGuest
-    ? TIER_LIMITS.guest
+    ? env.rateLimits.guest
     : apiKey?.rateLimitOverride ?? TIER_LIMITS[user.tier] ?? TIER_LIMITS.free;
 
   // Use a distinct bucket key per auth type so API key, session, and guest

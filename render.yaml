@@ -1,38 +1,32 @@
-# Render Blueprint — provisions the whole backend in one "New > Blueprint" step.
+# Render Blueprint — provisions the whole Kyro stack in one "New > Blueprint" step.
 # Docs: https://render.com/docs/blueprint-spec
 #
-# After this deploys, you still need to:
-#   1. Fill in the SUPABASE_* env vars on the kyro-api service (Render can't
-#      know these — they come from your Supabase project settings).
-#   2. Fill in INFERENCE_BASE_URL with your GPU host's address.
-#   3. Run `npx prisma migrate deploy` against the new DB's external URL.
-#   4. Set the web app's NEXT_PUBLIC_* vars in Vercel (or add a web service
-#      here too — see the commented-out block at the bottom).
-
-databases:
-  - name: kyro-db
-    plan: starter
-    databaseName: kyro
-    user: kyro
+# After deploying:
+#   1. In Render dashboard → kyro-api → Environment, fill in every `sync: false` var.
+#      See apps/api/.env.production.example for the full list with instructions.
+#   2. In Render dashboard → kyro-web → Environment, fill in the NEXT_PUBLIC_* vars.
+#      NOTE: NEXT_PUBLIC_* are baked into the JS bundle at build time — a new deploy
+#      is required whenever you change them.
+#   3. Prisma migrations run automatically before each deploy (preDeployCommand).
 
 services:
   - type: redis
     name: kyro-redis
     plan: starter
-    ipAllowList: [] # internal-only; only services in this Render project can reach it
+    ipAllowList: [] # internal-only
 
+  # ── API Gateway ──────────────────────────────────────────────────────────────
   - type: web
     name: kyro-api
     runtime: docker
+    # Build from repo root so the Dockerfile can COPY prisma/ schema
     dockerfilePath: ./apps/api/Dockerfile
-    dockerContext: ./apps/api
+    dockerContext: .
     plan: starter
     healthCheckPath: /health
+    # Runs migrations against the DB before the new version goes live
+    preDeployCommand: "npx prisma migrate deploy --schema=./prisma/schema.prisma"
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: kyro-db
-          property: connectionString
       - key: REDIS_URL
         fromService:
           name: kyro-redis
@@ -44,34 +38,47 @@ services:
         value: production
       - key: API_KEY_PREFIX
         value: kyro_sk_live_
+      - key: RATE_LIMIT_FREE
+        value: 20
+      - key: RATE_LIMIT_PRO
+        value: 120
+      - key: RATE_LIMIT_ENTERPRISE
+        value: 1000
+      # ── Set these manually in the Render dashboard ──────────────────────────
+      - key: DATABASE_URL
+        sync: false   # postgresql://postgres:<pw>@db.swzdndkvszotjausxdfk.supabase.co:5432/postgres?sslmode=require
       - key: SUPABASE_URL
-        sync: false # set manually in the Render dashboard
+        sync: false   # https://swzdndkvszotjausxdfk.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false   # Project Settings → API → anon public
       - key: SUPABASE_JWT_SECRET
-        sync: false
+        sync: false   # Project Settings → API → JWT Secret
       - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
+        sync: false   # Project Settings → API → service_role secret
       - key: INFERENCE_BASE_URL
-        sync: false
+        sync: false   # e.g. http://your-gpu-host:8000/v1
       - key: INFERENCE_MODEL
-        sync: false
+        sync: false   # e.g. mistralai/Mistral-7B-Instruct-v0.3
       - key: INFERENCE_API_KEY
-        sync: false
+        sync: false   # leave blank for self-hosted with no auth
 
-# Uncomment to also host the Next.js frontend on Render instead of Vercel:
-#
-#  - type: web
-#    name: kyro-web
-#    runtime: docker
-#    dockerfilePath: ./apps/web/Dockerfile
-#    dockerContext: ./apps/web
-#    plan: starter
-#    envVars:
-#      - key: NEXT_PUBLIC_SUPABASE_URL
-#        sync: false
-#      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-#        sync: false
-#      - key: NEXT_PUBLIC_API_BASE_URL
-#        fromService:
-#          name: kyro-api
-#          type: web
-#          property: host
+  # ── Next.js Web Frontend ─────────────────────────────────────────────────────
+  - type: web
+    name: kyro-web
+    runtime: docker
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: ./apps/web
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      # Wired automatically from the API service
+      - key: NEXT_PUBLIC_API_BASE_URL
+        fromService:
+          name: kyro-api
+          type: web
+          property: host
+      # ── Set manually in the Render dashboard ────────────────────────────────
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false   # https://swzdndkvszotjausxdfk.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false   # Project Settings → API → anon public

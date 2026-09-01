@@ -1,0 +1,10 @@
+# .dockerignore for repo-root Docker builds (kyro-api)
+.git
+.gitignore
+*.md
+apps/web
+docker-compose.yml
+**/.env
+**/.env.*
+**/node_modules
+**/.next

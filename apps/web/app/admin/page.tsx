@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
+import AuthGuard from "../../components/AuthGuard";
 
 type Config = {
   activeModel: string;
@@ -19,27 +20,43 @@ type Analytics = {
   errorRate24h: number;
 };
 
-export default function AdminPage() {
+function AdminPageInner() {
   const [config, setConfig] = useState<Config | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch("/admin/config").then(setConfig);
-    apiFetch("/admin/analytics").then(setAnalytics);
+    Promise.all([apiFetch("/admin/config"), apiFetch("/admin/analytics")])
+      .then(([cfg, ana]) => {
+        setConfig(cfg);
+        setAnalytics(ana);
+      })
+      .catch((e) => setError(e.message));
   }, []);
 
   async function save() {
     if (!config) return;
     setSaving(true);
+    setError(null);
     try {
       await apiFetch("/admin/config", { method: "PUT", body: JSON.stringify(config) });
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
+    } catch (e: any) {
+      setError(e.message);
     } finally {
       setSaving(false);
     }
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-4xl px-6 py-12">
+        <p className="text-danger">Error: {error}</p>
+      </div>
+    );
   }
 
   if (!config || !analytics) {
@@ -85,36 +102,32 @@ export default function AdminPage() {
         <div className="grid grid-cols-3 gap-4">
           <Slider
             label={`Temperature: ${config.defaultTemperature}`}
-            min={0}
-            max={2}
-            step={0.1}
+            min={0} max={2} step={0.1}
             value={config.defaultTemperature}
             onChange={(v) => setConfig({ ...config, defaultTemperature: v })}
           />
           <Slider
             label={`Top-P: ${config.defaultTopP}`}
-            min={0}
-            max={1}
-            step={0.05}
+            min={0} max={1} step={0.05}
             value={config.defaultTopP}
             onChange={(v) => setConfig({ ...config, defaultTopP: v })}
           />
           <Slider
             label={`Max tokens: ${config.defaultMaxTokens}`}
-            min={128}
-            max={8192}
-            step={128}
+            min={128} max={8192} step={128}
             value={config.defaultMaxTokens}
             onChange={(v) => setConfig({ ...config, defaultMaxTokens: v })}
           />
         </div>
+
+        {error && <p className="text-danger text-sm">{error}</p>}
 
         <button
           onClick={save}
           disabled={saving}
           className="px-5 py-2.5 bg-accent text-ink rounded font-medium disabled:opacity-50"
         >
-          {saved ? "Saved" : saving ? "Saving…" : "Save & publish"}
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Save & publish"}
         </button>
       </section>
     </div>
@@ -139,33 +152,26 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Slider({
-  label,
-  min,
-  max,
-  step,
-  value,
-  onChange,
-}: {
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  value: number;
-  onChange: (v: number) => void;
+function Slider({ label, min, max, step, value, onChange }: {
+  label: string; min: number; max: number; step: number;
+  value: number; onChange: (v: number) => void;
 }) {
   return (
     <div>
       <label className="block text-xs text-muted mb-2 font-mono">{label}</label>
       <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
+        type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-[#F0A202]"
       />
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <AuthGuard adminOnly>
+      <AdminPageInner />
+    </AuthGuard>
   );
 }

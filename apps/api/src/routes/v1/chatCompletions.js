@@ -1,4 +1,4 @@
-import { requireApiKey } from "../../middleware/auth.js";
+import { requireApiKeyOrSession } from "../../middleware/auth.js";
 import { enforceRateLimit } from "../../middleware/rateLimit.js";
 import { getActiveConfig } from "../../services/systemConfigService.js";
 import { callInference } from "../../services/inferenceClient.js";
@@ -11,12 +11,16 @@ import { prisma } from "../../lib/prisma.js";
  * prepends Kyro's live system prompt (fetched from the Redis-cached active
  * config, set by the Admin Panel), and proxies to the self-hosted inference
  * engine — streaming tokens back over SSE when `stream: true`.
+ *
+ * Auth: accepts EITHER a developer API key (kyro_sk_live_...) OR a
+ * first-party Supabase session JWT from the web chat UI. Both are subject
+ * to token-bucket rate limiting keyed to their respective identities.
  */
 export default async function chatCompletionsRoute(fastify) {
   fastify.post(
     "/v1/chat/completions",
     {
-      preHandler: [requireApiKey, enforceRateLimit],
+      preHandler: [requireApiKeyOrSession, enforceRateLimit],
       schema: {
         description: "Create a chat completion. Drop-in compatible with the OpenAI SDK — just change baseURL and apiKey.",
         tags: ["chat"],
@@ -76,14 +80,17 @@ export default async function chatCompletionsRoute(fastify) {
 
       if (!stream) {
         const json = await upstream.json();
-        logUsage({
-          apiKeyId: request.apiKey.id,
-          endpoint: "/v1/chat/completions",
-          promptTokens: json.usage?.prompt_tokens ?? 0,
-          completionTokens: json.usage?.completion_tokens ?? 0,
-          statusCode: 200,
-          latencyMs: Date.now() - startedAt,
-        });
+        // Only log when using an API key — session-based usage has no key to associate with
+        if (request.apiKey) {
+          logUsage({
+            apiKeyId: request.apiKey.id,
+            endpoint: "/v1/chat/completions",
+            promptTokens: json.usage?.prompt_tokens ?? 0,
+            completionTokens: json.usage?.completion_tokens ?? 0,
+            statusCode: 200,
+            latencyMs: Date.now() - startedAt,
+          });
+        }
         return reply.send(json);
       }
 
@@ -105,14 +112,16 @@ export default async function chatCompletionsRoute(fastify) {
         }
       } finally {
         reply.raw.end();
-        logUsage({
-          apiKeyId: request.apiKey.id,
-          endpoint: "/v1/chat/completions",
-          promptTokens: estimateTokens(finalMessages),
-          completionTokens: completionTokenCount,
-          statusCode: 200,
-          latencyMs: Date.now() - startedAt,
-        });
+        if (request.apiKey) {
+          logUsage({
+            apiKeyId: request.apiKey.id,
+            endpoint: "/v1/chat/completions",
+            promptTokens: estimateTokens(finalMessages),
+            completionTokens: completionTokenCount,
+            statusCode: 200,
+            latencyMs: Date.now() - startedAt,
+          });
+        }
       }
     }
   );

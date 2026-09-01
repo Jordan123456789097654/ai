@@ -80,3 +80,51 @@ export async function requireApiKey(request, reply) {
   request.user = key.user;
   touchLastUsed(key.id);
 }
+
+/**
+ * Fastify preHandler for /v1/chat/completions: accepts EITHER a developer
+ * API key (`kyro_sk_live_...`) OR a first-party Supabase session JWT from
+ * the web chat. This is what lets the web UI and external developers share
+ * the exact same completion endpoint.
+ *
+ * - API key  → request.apiKey + request.user (rate-limited by key)
+ * - Session  → request.user only, request.apiKey is undefined
+ *              (rate-limited by user.id with the user's tier limit)
+ */
+export async function requireApiKeyOrSession(request, reply) {
+  const authHeader = request.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return reply.code(401).send({
+      error: { message: "Missing authentication — use an API key or a session token", type: "auth_error" },
+    });
+  }
+
+  // Developer API key path
+  if (token.startsWith(env.apiKeyPrefix)) {
+    const key = await findActiveKeyByRawSecret(token);
+    if (!key) {
+      return reply.code(401).send({
+        error: { message: "Invalid API key", type: "invalid_request_error", code: 401 },
+      });
+    }
+    request.apiKey = key;
+    request.user = key.user;
+    touchLastUsed(key.id);
+    return;
+  }
+
+  // First-party web session path
+  try {
+    request.user = await verifySupabaseSession(token);
+    if (request.user.isSuspended) {
+      return reply.code(403).send({ error: { message: "Account suspended", type: "auth_error" } });
+    }
+    // request.apiKey intentionally left undefined — enforceRateLimit handles this
+  } catch {
+    return reply.code(401).send({
+      error: { message: "Invalid or expired token", type: "auth_error" },
+    });
+  }
+}

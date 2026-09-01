@@ -51,7 +51,9 @@ services:
       - vllm_cache:/root/.cache/huggingface
 
   api:
-    build: ./apps/api
+    build:
+      context: .                          # repo root — gives Dockerfile access to /prisma
+      dockerfile: apps/api/Dockerfile
     env_file: ./apps/api/.env
     environment:
       DATABASE_URL: postgresql://kyro:kyro_dev_password@postgres:5432/kyro

@@ -8,15 +8,23 @@ const TIER_LIMITS = {
 };
 
 /**
- * Fastify preHandler: enforces a per-API-key token-bucket rate limit.
- * Precedence: key-level override > user's tier default.
- * Requires requireApiKey to have already run (needs request.apiKey / request.user).
+ * Fastify preHandler: enforces a per-caller token-bucket rate limit.
+ *
+ * Works in two modes depending on how the caller authenticated:
+ *   - API key auth  → bucket key = apiKey.id, limit from key override or tier
+ *   - Session auth  → bucket key = "session:{user.id}", limit from user tier
+ *
+ * Requires requireApiKey or requireApiKeyOrSession to have already run.
  */
 export async function enforceRateLimit(request, reply) {
   const { apiKey, user } = request;
-  const limit = apiKey.rateLimitOverride ?? TIER_LIMITS[user.tier] ?? TIER_LIMITS.free;
+  const limit = apiKey?.rateLimitOverride ?? TIER_LIMITS[user.tier] ?? TIER_LIMITS.free;
 
-  const { allowed, remaining } = await checkTokenBucket(apiKey.id, limit);
+  // Use a distinct bucket key per auth type so API key and session quotas
+  // are tracked independently for the same user.
+  const bucketKey = apiKey ? apiKey.id : `session:${user.id}`;
+
+  const { allowed, remaining } = await checkTokenBucket(bucketKey, limit);
 
   reply.header("X-RateLimit-Limit", limit);
   reply.header("X-RateLimit-Remaining", Math.floor(remaining));

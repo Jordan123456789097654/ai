@@ -12,6 +12,7 @@ RUN npm install --omit=dev
 # ── 2. Generate Prisma client ─────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
+RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 # Copy the schema first (at the path the generate command expects)
 COPY prisma ./prisma
@@ -24,6 +25,7 @@ RUN npx prisma generate --schema=./prisma/schema.prisma
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/prisma ./prisma

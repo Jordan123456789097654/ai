@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
+import { API_BASE } from "../../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [magicSent, setMagicSent] = useState(false);
+
+  /** Calls our own backend, which generates the Supabase auth link and emails it via Resend. */
+  async function postAuth(path: string, body: Record<string, string>) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error?.message || "Something went wrong. Please try again.");
+    }
+  }
 
   async function handlePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -30,12 +44,11 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setError(error.message);
-    } else {
-      setError("");
-      setMagicSent(true); // Supabase sends a confirmation email
+    try {
+      await postAuth("/auth/signup", { email, password });
+      setMagicSent(true); // We send our own confirmation email via Resend
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     }
     setLoading(false);
   }
@@ -44,14 +57,11 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin + "/chat" },
-    });
-    if (error) {
-      setError(error.message);
-    } else {
+    try {
+      await postAuth("/auth/magic-link", { email });
       setMagicSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     }
     setLoading(false);
   }

@@ -17,6 +17,11 @@ export const env = {
 
   apiKeyPrefix: process.env.API_KEY_PREFIX || "kyro_sk_live_",
 
+  // Custom auth email delivery (replaces Supabase Auth's built-in mailer)
+  resendApiKey: process.env.RESEND_API_KEY,
+  emailFrom: process.env.EMAIL_FROM || "Kyro <onboarding@resend.dev>",
+  appUrl: process.env.APP_URL || "http://localhost:3000",
+
   rateLimits: {
     free: Number(process.env.RATE_LIMIT_FREE || 20),
     pro: Number(process.env.RATE_LIMIT_PRO || 120),

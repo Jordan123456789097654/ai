@@ -46,7 +46,12 @@ services:
         value: 1000
       # ── Set these manually in the Render dashboard ──────────────────────────
       - key: DATABASE_URL
-        sync: false   # postgresql://postgres:<pw>@db.swzdndkvszotjausxdfk.supabase.co:5432/postgres?sslmode=require
+        sync: false   # Supabase Transaction pooler, port 6543 — used by the app at runtime
+                      # postgresql://postgres.xxxx:<pw>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true
+      - key: DIRECT_URL
+        sync: false   # Supabase Session pooler, port 5432 — used ONLY for prisma migrate deploy
+                      # (transaction-mode pooling doesn't support the advisory locks migrations need)
+                      # postgresql://postgres.xxxx:<pw>@aws-0-<region>.pooler.supabase.com:5432/postgres
       - key: SUPABASE_URL
         sync: false   # https://swzdndkvszotjausxdfk.supabase.co
       - key: SUPABASE_ANON_KEY

@@ -12,6 +12,7 @@ import modelsRoute from "./routes/v1/models.js";
 import keysRoutes from "./routes/keys.js";
 import adminRoutes from "./routes/admin.js";
 import conversationsRoutes from "./routes/conversations.js";
+import authRoutes from "./routes/auth.js";
 
 const fastify = Fastify({ logger: true });
 
@@ -33,6 +34,7 @@ await fastify.register(swagger, {
     },
     servers: [{ url: "http://localhost:4000", description: "Local" }],
     tags: [
+      { name: "auth", description: "Public sign-up / sign-in (sends its own emails via Resend)" },
       { name: "chat", description: "OpenAI-compatible public API" },
       { name: "developer-portal", description: "API key management (requires a Kyro account session)" },
       { name: "admin", description: "Admin control panel (requires the admin role)" },
@@ -54,6 +56,9 @@ await fastify.register(swaggerUi, { routePrefix: "/docs" });
 // Public, OpenAI-compatible surface
 await fastify.register(chatCompletionsRoute);
 await fastify.register(modelsRoute);
+
+// Public auth surface — signup / magic-link (sends its own emails)
+await fastify.register(authRoutes);
 
 // First-party, session-authenticated surfaces
 await fastify.register(keysRoutes);

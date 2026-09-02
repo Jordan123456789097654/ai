@@ -46,6 +46,7 @@ const ERROR_ROWS = [
   { code: "401", meaning: "Missing or invalid API key", fix: "Check the key is active in the developer portal and sent as Authorization: Bearer kyro_sk_live_..." },
   { code: "403", meaning: "Account suspended", fix: "Contact support — the account behind this key has been suspended by an admin." },
   { code: "429", meaning: "Rate limit exceeded", fix: "Back off using the X-RateLimit-Remaining header, or request a tier upgrade." },
+  { code: "500", meaning: "Unexpected server-side error", fix: "Something failed on Kyro's side outside the normal error paths (e.g. a database or config issue). Retry once; if it persists, contact support with the request timestamp." },
   { code: "502", meaning: "Inference server unavailable", fix: "Transient upstream issue — retry with backoff." },
 ];
 

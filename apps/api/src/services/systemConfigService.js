@@ -30,7 +30,15 @@ export async function getActiveConfig() {
     }
   }
 
-  const dbConfig = await prisma.systemConfig.findFirst({ where: { isActive: true } });
+  const dbConfig = await prisma.systemConfig
+    .findFirst({ where: { isActive: true } })
+    .catch((err) => {
+      // If Postgres is unreachable, misconfigured, or the table is missing
+      // (e.g. a migration/env mismatch), don't take the whole chat endpoint
+      // down with it — degrade to sane defaults instead of a hard 500.
+      console.error("[systemConfigService] DB read failed, falling back to defaults:", err.message);
+      return null;
+    });
   const config = dbConfig
     ? {
         activeModel: dbConfig.activeModel,
@@ -41,7 +49,7 @@ export async function getActiveConfig() {
       }
     : DEFAULT_CONFIG;
 
-  await redis.set(CACHE_KEY, JSON.stringify(config), "EX", CACHE_TTL_SECONDS);
+  await redis.set(CACHE_KEY, JSON.stringify(config), "EX", CACHE_TTL_SECONDS).catch(() => {});
   return config;
 }
 

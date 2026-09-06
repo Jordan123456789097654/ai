@@ -187,6 +187,61 @@ export default function DocsPage() {
         <CodeBlock code={SNIPPETS[activeLang].code} language={SNIPPETS[activeLang].lang} />
       </section>
 
+      {/* Model Specifications & Benchmarks */}
+      <section>
+        <h2 className="font-display text-xl mb-4">Supported AI Models & Benchmarks</h2>
+        <div className="border border-border rounded overflow-hidden text-sm">
+          <table className="w-full text-left">
+            <thead className="bg-surface text-muted text-xs">
+              <tr>
+                <th className="px-4 py-2.5 font-normal">Model ID</th>
+                <th className="px-4 py-2.5 font-normal">Base Architecture</th>
+                <th className="px-4 py-2.5 font-normal">Context Window</th>
+                <th className="px-4 py-2.5 font-normal">Avg Speed</th>
+                <th className="px-4 py-2.5 font-normal">Primary Specialization</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              <tr className="hover:bg-surface-raised/40">
+                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-coder-pro</td>
+                <td className="px-4 py-3 font-mono text-xs text-text">Qwen 2.5 Coder 32B</td>
+                <td className="px-4 py-3 text-xs font-mono text-muted">128,000 tokens</td>
+                <td className="px-4 py-3 text-xs font-mono text-success">~420 tok/s</td>
+                <td className="px-4 py-3 text-xs text-muted">Full-stack coding, unit tests, refactoring</td>
+              </tr>
+              <tr className="hover:bg-surface-raised/40">
+                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-ultra-70b</td>
+                <td className="px-4 py-3 font-mono text-xs text-text">Llama 3.3 70B Versatile</td>
+                <td className="px-4 py-3 text-xs font-mono text-muted">128,000 tokens</td>
+                <td className="px-4 py-3 text-xs font-mono text-success">~290 tok/s</td>
+                <td className="px-4 py-3 text-xs text-muted">Complex reasoning, logic, architecture</td>
+              </tr>
+              <tr className="hover:bg-surface-raised/40">
+                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-flash-8b</td>
+                <td className="px-4 py-3 font-mono text-xs text-text">Llama 3.1 8B Instant</td>
+                <td className="px-4 py-3 text-xs font-mono text-muted">128,000 tokens</td>
+                <td className="px-4 py-3 text-xs font-mono text-success">~680 tok/s</td>
+                <td className="px-4 py-3 text-xs text-muted">Ultra-fast real-time completions</td>
+              </tr>
+              <tr className="hover:bg-surface-raised/40">
+                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-mixtral-8x7b</td>
+                <td className="px-4 py-3 font-mono text-xs text-text">Mixtral 8x7B Instruct</td>
+                <td className="px-4 py-3 text-xs font-mono text-muted">32,768 tokens</td>
+                <td className="px-4 py-3 text-xs font-mono text-success">~380 tok/s</td>
+                <td className="px-4 py-3 text-xs text-muted">High-capacity mixture of experts</td>
+              </tr>
+              <tr className="hover:bg-surface-raised/40">
+                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-gemma-9b</td>
+                <td className="px-4 py-3 font-mono text-xs text-text">Gemma 2 9B IT</td>
+                <td className="px-4 py-3 text-xs font-mono text-muted">8,192 tokens</td>
+                <td className="px-4 py-3 text-xs font-mono text-success">~550 tok/s</td>
+                <td className="px-4 py-3 text-xs text-muted">Strict instruction following</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {/* Rate Limits & Tiers */}
       <section>
         <h2 className="font-display text-xl mb-4">Rate Limits & Quota Tiers</h2>

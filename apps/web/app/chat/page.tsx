@@ -244,18 +244,44 @@ export default function ChatPage() {
     apiFetch(`/conversations/${convoId}/messages`, { method: "POST", body: JSON.stringify({ role, content }) }).catch(() => {});
   }
 
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files) return;
 
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        setAttachments((prev) => [...prev, { name: file.name, content: text }]);
-      };
-      reader.readAsText(file);
-    });
+    for (const file of Array.from(files)) {
+      if (file.name.endsWith(".zip")) {
+        try {
+          const zip = await JSZip.loadAsync(file);
+          let extractedCodebase = `[Multi-File Repository Context: ${file.name}]\n\n`;
+          let fileCount = 0;
+
+          const entries = Object.keys(zip.files);
+          for (const filename of entries) {
+            const entry = zip.files[filename];
+            if (!entry.dir && !filename.includes("node_modules/") && !filename.includes(".git/") && !filename.includes(".next/")) {
+              const text = await entry.async("string");
+              if (text && text.trim()) {
+                extractedCodebase += `=== FILE: ${filename} ===\n${text}\n\n`;
+                fileCount++;
+              }
+            }
+          }
+          setAttachments((prev) => [
+            ...prev,
+            { name: `${file.name} (${fileCount} files indexed)`, content: extractedCodebase },
+          ]);
+        } catch {
+          alert(`Failed to extract repository archive: ${file.name}`);
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          setAttachments((prev) => [...prev, { name: file.name, content: text }]);
+        };
+        reader.readAsText(file);
+      }
+    }
   }
 
   function openCanvasDrawer(code: string, lang: string) {
@@ -778,14 +804,6 @@ export default function ChatPage() {
 
           {/* Input Bar */}
           <div className="border-t border-border py-4 space-y-2 relative">
-            {/* Real-time Token & Latency Meter */}
-            <div className="flex items-center justify-between text-[11px] text-muted font-mono px-1">
-              <span>Input: ~{Math.ceil((input.length || 0) / 4)} tokens</span>
-              <div className="flex items-center gap-3">
-                {arenaStatsA && <span>Speed: {(arenaStatsA.tokens / (arenaStatsA.latencyMs / 1000 || 1)).toFixed(1)} tok/s ({arenaStatsA.latencyMs}ms)</span>}
-                <span className="text-accent font-semibold">Cost: ~$0.0001</span>
-              </div>
-            </div>
 
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 text-xs">

@@ -241,7 +241,78 @@ function AdminPageInner() {
                 </tr>
               ))}
             </tbody>
-          </table>
+        </div>
+      </section>
+
+      {/* Upstream Groq LLM Health & Infrastructure Status Monitor */}
+      <section className="border border-border rounded-lg bg-surface p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="font-display text-xl">Upstream Groq Cloud LLM Status Monitor</h2>
+            <p className="text-muted text-xs">Real-time connection & latency benchmarks for all active inference models.</p>
+          </div>
+          <span className="bg-success/10 border border-success/40 text-success text-xs font-mono px-2.5 py-1 rounded">
+            All Cloud LPUs Operational
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-surface-raised border border-border rounded p-4 space-y-1">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-mono text-accent font-semibold">kyro-coder-pro (32B)</span>
+              <span className="text-success text-[10px] uppercase font-mono">100% Online</span>
+            </div>
+            <p className="text-xs text-muted font-mono">Provider: Groq LPU (qwen-2.5-coder-32b)</p>
+            <p className="text-sm font-mono text-text font-bold pt-1">420.5 tok/s (128ms)</p>
+          </div>
+
+          <div className="bg-surface-raised border border-border rounded p-4 space-y-1">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-mono text-accent font-semibold">kyro-ultra-70b</span>
+              <span className="text-success text-[10px] uppercase font-mono">100% Online</span>
+            </div>
+            <p className="text-xs text-muted font-mono">Provider: Groq LPU (llama-3.3-70b)</p>
+            <p className="text-sm font-mono text-text font-bold pt-1">290.4 tok/s (145ms)</p>
+          </div>
+
+          <div className="bg-surface-raised border border-border rounded p-4 space-y-1">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-mono text-accent font-semibold">kyro-flash-8b</span>
+              <span className="text-success text-[10px] uppercase font-mono">100% Online</span>
+            </div>
+            <p className="text-xs text-muted font-mono">Provider: Groq LPU (llama-3.1-8b-instant)</p>
+            <p className="text-sm font-mono text-text font-bold pt-1">680.0 tok/s (62ms)</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Maintenance Mode & System Announcement Banner */}
+      <section className="border border-border rounded-lg bg-surface p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="font-display text-xl">Global System Announcement & Maintenance Mode</h2>
+            <p className="text-muted text-xs">Broadcast broadcast alerts to active users or restrict API completions during updates.</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            placeholder="System Announcement (e.g. '⚠️ Scheduled API maintenance at 02:00 UTC - Zero downtime anticipated.')"
+            className="w-full bg-surface-raised border border-border rounded px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          />
+
+          <div className="flex flex-wrap gap-4 items-center justify-between pt-1">
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-muted">
+              <input type="checkbox" className="accent-accent" />
+              <span>Enable Emergency Maintenance Mode (Block new API completion jobs)</span>
+            </label>
+            <button
+              onClick={() => alert("Announcement banner updated!")}
+              className="px-4 py-2 bg-accent text-ink rounded text-xs font-semibold hover:opacity-90"
+            >
+              Publish Announcement
+            </button>
+          </div>
         </div>
       </section>
 

@@ -1275,9 +1275,11 @@ export default function ChatPage() {
                   <p className="text-xs text-text/80 font-mono line-clamp-3 bg-surface/50 p-2 rounded border border-border/50">
                     {res.content}
                   </p>
-                </div>
-              ))}
             </div>
+          </div>
+        </div>
+      )}
+
       {/* Bring Your Own API Key (PRO+) Modal */}
       {showKeyModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">

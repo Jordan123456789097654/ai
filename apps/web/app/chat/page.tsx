@@ -434,6 +434,13 @@ export default function ChatPage() {
       });
     }
 
+    if (showThinkingProcess) {
+      payloadMessages.push({
+        role: "system",
+        content: "[Chain-of-Thought Active]: Evaluate problem constraints, architecture, and step-by-step logic inside <think>...</think> tags before giving your response.",
+      });
+    }
+
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: text }];
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
     if (isArenaMode) {

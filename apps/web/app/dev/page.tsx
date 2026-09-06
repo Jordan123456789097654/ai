@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import { Copy, Trash2, Plus, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import AuthGuard from "../../components/AuthGuard";
+import AgentInstructionsPanel from "../../components/AgentInstructionsPanel";
 
 type ApiKeyRow = {
   id: string;

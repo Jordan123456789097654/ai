@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Shield, Users, Zap, AlertTriangle, Check, Sliders, RefreshCw, MessageSquare, Send, Headphones } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import AuthGuard from "../../components/AuthGuard";
+import AgentInstructionsPanel from "../../components/AgentInstructionsPanel";
 
 type Config = {
   activeModel: string;
@@ -530,6 +531,11 @@ function AdminPageInner() {
           {saved ? <Check size={16} /> : <Shield size={16} />}
           {saved ? "Saved & Published ✓" : saving ? "Saving..." : "Save & Publish Changes"}
         </button>
+      </section>
+
+      {/* AI Agent Instructions & Behavior Manager (From Uploaded Design) */}
+      <section className="space-y-4 pt-4">
+        <AgentInstructionsPanel />
       </section>
     </div>
   );

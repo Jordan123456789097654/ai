@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { HelpCircle, MessageSquare, LifeBuoy, Search, Check, Send, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { HelpCircle, MessageSquare, LifeBuoy, Search, Check, Send, ChevronDown, ChevronUp, Bot, User, AlertTriangle, ArrowRight, Sparkles, ShieldAlert } from "lucide-react";
+import { apiFetch } from "../../lib/api";
 
 type FAQItem = { question: string; answer: string; category: string };
 
@@ -24,43 +25,74 @@ const FAQS: FAQItem[] = [
   {
     category: "Security & Privacy",
     question: "Are my conversation prompts used for training?",
-    answer: "No. Prompts sent to Kyro are processed ephemerally on Groq LPU hardware and are never used to train global base models.",
+    answer: "No. Prompts sent to Kyro are processed ephemerally on cloud hardware and are never used to train global base models.",
   },
 ];
 
-type Ticket = { id: string; category: string; priority: string; subject: string; status: "Open" | "In Progress" | "Resolved"; date: string };
+type ChatMessage = { sender: "AI Agent" | "You"; text: string; time: string; escalated?: boolean; ticketId?: string };
 
 export default function SupportPage() {
   const [search, setSearch] = useState("");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [tickets, setTickets] = useState<Ticket[]>([
-    { id: "TICK-9021", category: "API Integration", priority: "Medium", subject: "Rate limit header questions", status: "Resolved", date: "2026-09-04" },
+
+  // AI Support Agent Chat State
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      sender: "AI Agent",
+      text: "Hello! I am Kyro AI Support Agent. Ask me anything about your account, API integration, or billing questions. If I am unable to answer your query, I will automatically route your request to a Human Admin in our Admin Panel.",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    },
   ]);
+  const [userInput, setUserInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [emailInput, setEmailInput] = useState("user@example.com");
 
-  const [category, setCategory] = useState("Technical / API");
-  const [priority, setPriority] = useState("Medium");
-  const [subject, setSubject] = useState("");
-  const [description, setDescription] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  function submitTicket(e: React.FormEvent) {
+  async function handleSendAiChat(e: React.FormEvent) {
     e.preventDefault();
-    if (!subject.trim() || !description.trim()) return;
+    if (!userInput.trim() || isTyping) return;
 
-    const newTicket: Ticket = {
-      id: `TICK-${Math.floor(1000 + Math.random() * 9000)}`,
-      category,
-      priority,
-      subject: subject.trim(),
-      status: "Open",
-      date: new Date().toISOString().slice(0, 10),
-    };
+    const userText = userInput.trim();
+    const userTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-    setTickets((prev) => [newTicket, ...prev]);
-    setSubject("");
-    setDescription("");
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+    const newHistory = [...chatMessages, { sender: "You" as const, text: userText, time: userTime }];
+    setChatMessages(newHistory);
+    setUserInput("");
+    setIsTyping(true);
+
+    try {
+      const res = await apiFetch("/v1/support/ai-chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message: userText,
+          customerEmail: emailInput,
+          history: newHistory,
+        }),
+      });
+
+      const aiTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          sender: "AI Agent",
+          text: res.response || "I am processing your inquiry...",
+          time: aiTime,
+          escalated: res.escalated,
+          ticketId: res.ticketId,
+        },
+      ]);
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          sender: "AI Agent",
+          text: "⚠️ System note: Your query has been automatically routed to our Admin Support Queue under /admin.",
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          escalated: true,
+        },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
   }
 
   const filteredFaqs = FAQS.filter(
@@ -68,11 +100,11 @@ export default function SupportPage() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-12 space-y-12">
+    <div className="mx-auto max-w-5xl px-6 py-12 space-y-10 font-sans">
       <div className="text-center space-y-3">
-        <h1 className="font-display text-3xl text-text">Help & Support Portal</h1>
+        <h1 className="font-display text-3xl md:text-4xl text-text font-bold">Help & Support Portal</h1>
         <p className="text-muted text-sm max-w-xl mx-auto">
-          Need help integrating Kyro AI or managing your developer credentials? Search our FAQs or submit a support ticket.
+          Instant support powered by Kyro AI. Ask questions below—if our AI cannot answer, it will automatically escalate your inquiry to an Admin.
         </p>
 
         <div className="relative max-w-md mx-auto pt-2">
@@ -85,35 +117,111 @@ export default function SupportPage() {
           />
           <Search size={16} className="absolute left-3 top-5 text-muted" />
         </div>
-      {/* Tawk.to Live Chat Banner */}
-      <div className="border border-accent/40 bg-accent/5 rounded-lg p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="space-y-1 text-center md:text-left">
-          <h2 className="font-display text-lg text-accent font-bold flex items-center justify-center md:justify-start gap-2">
-            <MessageSquare size={20} /> Live Chat Support (Powered by Tawk.to)
-          </h2>
-          <p className="text-xs text-muted">
-            Connect instantly with our support team in real-time. Click the button or use the live chat widget at the bottom right.
-          </p>
-        </div>
-
-        <button
-          onClick={() => {
-            if ((window as any).Tawk_API?.maximize) {
-              (window as any).Tawk_API.maximize();
-            } else {
-              alert("Live Chat is initializing... Look for the chat widget in the bottom right corner!");
-            }
-          }}
-          className="px-5 py-2.5 bg-accent text-ink font-semibold rounded text-xs flex items-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap"
-        >
-          <MessageSquare size={14} /> Open Live Chat Now
-        </button>
       </div>
 
+      {/* Main Interactive AI Support Chat Agent */}
+      <div className="border border-accent/40 bg-surface rounded-xl overflow-hidden shadow-2xl space-y-0">
+        {/* Agent Header */}
+        <div className="bg-surface-raised border-b border-border p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-accent/20 border border-accent/50 flex items-center justify-center text-accent">
+              <Bot size={22} />
+            </div>
+            <div>
+              <h2 className="font-display text-base font-bold text-text flex items-center gap-2">
+                Kyro AI Support Agent
+                <span className="w-2 h-2 rounded-full bg-success animate-ping" />
+              </h2>
+              <p className="text-xs text-muted">Answers instantly based on business instructions. Escalates to Admin if needed.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-muted">Your Email:</span>
+            <input
+              type="email"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              className="bg-bg border border-border rounded px-2.5 py-1 text-xs font-mono text-text outline-none focus:border-accent"
+            />
+          </div>
+        </div>
+
+        {/* Chat Messages Feed */}
+        <div className="p-6 space-y-4 max-h-[420px] overflow-y-auto bg-bg/50">
+          {chatMessages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`flex gap-3 text-xs leading-relaxed max-w-3xl ${
+                msg.sender === "You" ? "ml-auto flex-row-reverse" : "mr-auto"
+              }`}
+            >
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                  msg.sender === "You"
+                    ? "bg-surface-raised border border-border text-muted"
+                    : "bg-accent text-ink font-bold"
+                }`}
+              >
+                {msg.sender === "You" ? <User size={14} /> : <Bot size={14} />}
+              </div>
+
+              <div
+                className={`p-4 rounded-xl space-y-1 border shadow-sm ${
+                  msg.sender === "You"
+                    ? "bg-accent/10 border-accent/30 text-text rounded-tr-none"
+                    : msg.escalated
+                    ? "bg-warning/10 border-warning/40 text-text rounded-tl-none"
+                    : "bg-surface border-border text-text rounded-tl-none"
+                }`}
+              >
+                <div className="flex justify-between items-center font-mono text-[10px] text-muted gap-4">
+                  <span className="font-bold">{msg.sender}</span>
+                  <span>{msg.time}</span>
+                </div>
+
+                <p className="text-sm font-sans whitespace-pre-wrap">{msg.text}</p>
+
+                {msg.escalated && (
+                  <div className="mt-2 pt-2 border-t border-warning/30 text-[11px] font-mono text-warning flex items-center gap-1.5 font-semibold">
+                    <ShieldAlert size={14} /> Escalated to Admin Panel (Ticket #{msg.ticketId || "TCK-AUTO"})
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {isTyping && (
+            <div className="flex gap-2 text-xs font-mono text-muted items-center">
+              <Bot size={14} className="text-accent animate-spin" /> Kyro AI Support Agent is thinking...
+            </div>
+          )}
+        </div>
+
+        {/* Input Bar */}
+        <form onSubmit={handleSendAiChat} className="p-4 bg-surface border-t border-border flex gap-3">
+          <input
+            type="text"
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            placeholder="Type your support question here... (e.g. 'How do I raise my rate limit?' or 'Talk to human')"
+            className="flex-1 bg-bg border border-border rounded-lg px-4 py-2.5 text-sm text-text outline-none focus:border-accent font-sans"
+          />
+          <button
+            type="submit"
+            disabled={isTyping || !userInput.trim()}
+            className="px-6 py-2.5 bg-accent text-ink rounded-lg font-semibold text-xs flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            <Send size={14} /> Send
+          </button>
+        </form>
+      </div>
+
+      {/* FAQs Section */}
       <section className="border border-border rounded-lg bg-surface p-6 space-y-4">
         <div className="flex items-center gap-2 border-b border-border pb-3">
           <HelpCircle size={18} className="text-accent" />
-          <h2 className="font-display text-xl">Frequently Asked Questions</h2>
+          <h2 className="font-display text-xl font-bold">Frequently Asked Questions</h2>
         </div>
 
         <div className="space-y-3">
@@ -135,137 +243,6 @@ export default function SupportPage() {
               )}
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="border border-border rounded-lg bg-surface p-6 space-y-4">
-          <div className="flex items-center gap-2 border-b border-border pb-3">
-            <MessageSquare size={18} className="text-accent" />
-            <h2 className="font-display text-xl">Submit a Support Ticket</h2>
-          </div>
-
-          {submitted && (
-            <div className="bg-success/10 border border-success/40 text-success p-3 rounded text-xs flex items-center gap-2 font-medium">
-              <Check size={14} /> Ticket submitted successfully! Our team will respond shortly.
-            </div>
-          )}
-
-          <form onSubmit={submitTicket} className="space-y-3 text-xs">
-            <div>
-              <label className="block text-muted font-medium mb-1">Issue Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
-              >
-                <option value="Technical / API">Technical / API Integration</option>
-                <option value="Rate Limits / Quotas">Rate Limits / Tier Upgrades</option>
-                <option value="Bug Report">Bug Report</option>
-                <option value="Feature Request">Feature Request</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-muted font-medium mb-1">Priority</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
-              >
-                <option value="Low">Low</option>
-                <option value="Medium">Medium</option>
-                <option value="High / Urgent">High / Urgent</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-muted font-medium mb-1">Subject</label>
-              <input
-                type="text"
-                required
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Brief summary of your issue..."
-                className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-muted font-medium mb-1">Detailed Description</label>
-              <textarea
-                required
-                rows={4}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Provide steps to reproduce, API endpoints, or error codes..."
-                className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-accent text-ink rounded font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity text-sm"
-            >
-              <Send size={14} /> Submit Support Ticket
-            </button>
-          </form>
-        </div>
-
-        <div className="space-y-6">
-          <div className="border border-border rounded-lg bg-surface p-6 space-y-4">
-            <div className="flex items-center gap-2 border-b border-border pb-3">
-              <FileText size={18} className="text-accent" />
-              <h2 className="font-display text-xl">Your Support Tickets</h2>
-            </div>
-
-            <div className="border border-border rounded overflow-hidden text-xs">
-              <table className="w-full text-left">
-                <thead className="bg-surface-raised text-muted font-normal">
-                  <tr>
-                    <th className="p-2.5">ID</th>
-                    <th className="p-2.5">Subject</th>
-                    <th className="p-2.5">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {tickets.map((t) => (
-                    <tr key={t.id} className="hover:bg-surface-raised/40">
-                      <td className="p-2.5 font-mono text-accent">{t.id}</td>
-                      <td className="p-2.5 text-text font-medium truncate max-w-[140px]">{t.subject}</td>
-                      <td className="p-2.5">
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
-                            t.status === "Resolved"
-                              ? "bg-success/10 text-success border border-success/30"
-                              : "bg-accent/10 text-accent border border-accent/30"
-                          }`}
-                        >
-                          {t.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="border border-border rounded-lg bg-surface p-6 space-y-3">
-            <div className="flex items-center gap-2 border-b border-border pb-2">
-              <LifeBuoy size={18} className="text-accent" />
-              <h3 className="font-display text-lg">Direct Community & Docs</h3>
-            </div>
-            <p className="text-xs text-muted">Prefer direct community chat or live API logs?</p>
-            <div className="flex flex-col gap-2 text-xs font-medium">
-              <a href="/docs" className="text-accent hover:underline flex items-center gap-1">
-                → Read API Documentation & SDK Guides
-              </a>
-              <a href="/dev" className="text-accent hover:underline flex items-center gap-1">
-                → Manage API Keys & Webhook Alerts
-              </a>
-            </div>
-          </div>
         </div>
       </section>
     </div>

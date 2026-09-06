@@ -13,6 +13,7 @@ import keysRoutes from "./routes/keys.js";
 import adminRoutes from "./routes/admin.js";
 import conversationsRoutes from "./routes/conversations.js";
 import authRoutes from "./routes/auth.js";
+import discordRoute from "./routes/discord.js";
 
 const fastify = Fastify({ logger: true, trustProxy: true });
 
@@ -102,6 +103,7 @@ await fastify.register(authRoutes);
 await fastify.register(keysRoutes);
 await fastify.register(adminRoutes);
 await fastify.register(conversationsRoutes);
+await fastify.register(discordRoute);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 fastify.get("/health", async (_request, reply) => {

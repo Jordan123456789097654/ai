@@ -11,6 +11,7 @@ const PUBLIC_LINKS = [
   { href: "/chat", label: "Chat" },
   { href: "/workflows", label: "Workflows" },
   { href: "/db", label: "DB Connect" },
+  { href: "/status", label: "Status" },
   { href: "/docs", label: "Docs" },
   { href: "/support", label: "Support" },
 ];

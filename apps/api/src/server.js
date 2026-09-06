@@ -14,6 +14,7 @@ import adminRoutes from "./routes/admin.js";
 import conversationsRoutes from "./routes/conversations.js";
 import authRoutes from "./routes/auth.js";
 import discordRoute from "./routes/discord.js";
+import slackRoute from "./routes/slack.js";
 
 const fastify = Fastify({ logger: true, trustProxy: true });
 
@@ -104,6 +105,7 @@ await fastify.register(keysRoutes);
 await fastify.register(adminRoutes);
 await fastify.register(conversationsRoutes);
 await fastify.register(discordRoute);
+await fastify.register(slackRoute);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 fastify.get("/health", async (_request, reply) => {

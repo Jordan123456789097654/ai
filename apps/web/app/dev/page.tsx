@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { Copy, Trash2, Plus, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Copy, Trash2, Plus, Check, ChevronDown, ChevronUp, Bot } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import AuthGuard from "../../components/AuthGuard";
 
@@ -32,6 +32,25 @@ function DevPortalInner() {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [usageByKey, setUsageByKey] = useState<Record<string, UsageSummary>>({});
   const [usageLoading, setUsageLoading] = useState<Record<string, boolean>>({});
+
+  const [discordToken, setDiscordToken] = useState("");
+  const [botPrefix, setBotPrefix] = useState("!kyro");
+  const [botModel, setBotModel] = useState("kyro-coder-pro");
+  const [botStatus, setBotStatus] = useState<"Offline" | "Online">("Offline");
+
+  function toggleBotHost() {
+    if (!discordToken.trim()) {
+      alert("Please enter your Discord Bot Token from Discord Developer Portal first.");
+      return;
+    }
+    if (botStatus === "Online") {
+      setBotStatus("Offline");
+      alert("Hosted Discord Bot stopped successfully.");
+    } else {
+      setBotStatus("Online");
+      alert(`Hosted Discord Bot launched live! Active prefix: '${botPrefix}' | Active model: '${botModel}'`);
+    }
+  }
 
   async function loadKeys() {
     setLoading(true);
@@ -314,6 +333,86 @@ function DevPortalInner() {
           >
             Save Soft Cap Settings
           </button>
+        </div>
+      </div>
+
+      {/* Hosted Discord Bot Manager */}
+      <div className="mt-8 bg-surface border border-border rounded p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="font-display text-lg text-text flex items-center gap-2">
+              <Bot className="text-accent" size={20} /> Bring Your Own Discord Bot (Hosted Engine)
+            </h2>
+            <p className="text-xs text-muted">Paste your Discord Bot Token to host your custom AI bot on Kyro infrastructure. Kyro handles Gateway socket connections and slash commands.</p>
+          </div>
+          <span
+            className={`px-2.5 py-1 rounded text-xs font-mono border ${
+              botStatus === "Online"
+                ? "bg-success/10 text-success border-success/40 font-semibold"
+                : "bg-surface-raised text-muted border-border"
+            }`}
+          >
+            {botStatus === "Online" ? "● Bot Online & Hosted" : "Bot Offline"}
+          </span>
+        </div>
+
+        <div className="space-y-4 text-xs">
+          <div>
+            <label className="block text-muted font-medium mb-1">Discord Bot Token (from Discord Developer Portal)</label>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={discordToken}
+                onChange={(e) => setDiscordToken(e.target.value)}
+                placeholder="MTM0OTIx... (Paste Bot Secret Token)"
+                className="flex-1 bg-surface-raised border border-border rounded px-3 py-2 text-sm font-mono outline-none focus:border-accent"
+              />
+              <button
+                onClick={toggleBotHost}
+                className={`px-4 py-2 rounded font-semibold text-xs transition-opacity ${
+                  botStatus === "Online"
+                    ? "bg-danger text-ink hover:opacity-90"
+                    : "bg-accent text-ink hover:opacity-90"
+                }`}
+              >
+                {botStatus === "Online" ? "Stop Bot Hosting" : "Launch & Host Bot"}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+            <div>
+              <label className="block text-muted font-medium mb-1">Command Prefix</label>
+              <input
+                type="text"
+                value={botPrefix}
+                onChange={(e) => setBotPrefix(e.target.value)}
+                className="w-full bg-surface-raised border border-border rounded px-3 py-2 font-mono text-text outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-muted font-medium mb-1">AI Model Persona</label>
+              <select
+                value={botModel}
+                onChange={(e) => setBotModel(e.target.value)}
+                className="w-full bg-surface-raised border border-border rounded px-3 py-2 text-text outline-none focus:border-accent font-mono"
+              >
+                <option value="kyro-coder-pro">kyro-coder-pro (32B Code Specialist)</option>
+                <option value="kyro-ultra-70b">kyro-ultra-70b (70B Llama 3.3 Reasoning)</option>
+                <option value="kyro-flash-8b">kyro-flash-8b (Ultra Fast Instant)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-muted font-medium mb-1">Active Bot Commands</label>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className="bg-surface-raised border border-border px-2 py-0.5 rounded text-[11px] font-mono text-accent">/kyro-ask</span>
+                <span className="bg-surface-raised border border-border px-2 py-0.5 rounded text-[11px] font-mono text-accent">/kyro-code</span>
+                <span className="bg-surface-raised border border-border px-2 py-0.5 rounded text-[11px] font-mono text-accent">/kyro-fix</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

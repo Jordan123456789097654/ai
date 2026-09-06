@@ -8,7 +8,6 @@ import { prisma } from "../../lib/prisma.js";
  * POST /v1/chat/completions & GET /v1/chat/completions (info route)
  */
 export default async function chatCompletionsRoute(fastify) {
-  // Helpful GET route so visiting in browser explains it's a POST endpoint
   fastify.get("/v1/chat/completions", async (_request, reply) => {
     return reply.send({
       message: "Kyro OpenAI-compatible Chat Completions API endpoint. Send a POST request with { messages: [...] }.",
@@ -53,8 +52,6 @@ export default async function chatCompletionsRoute(fastify) {
       const config = await getActiveConfig();
 
       const targetModel = model || config.activeModel;
-
-      // Prepend Kyro global system persona
       const finalMessages = [{ role: "system", content: config.globalSystemPrompt }, ...messages];
 
       const effective = {
@@ -97,11 +94,14 @@ export default async function chatCompletionsRoute(fastify) {
         return reply.send(json);
       }
 
-      // SSE passthrough
+      // SSE passthrough — EXPLICITLY set CORS headers on reply.raw to prevent browser streaming blocks!
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        Connection: "keep-alive",
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Requested-With, Accept",
       });
 
       let completionTokenCount = 0;

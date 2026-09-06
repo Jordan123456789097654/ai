@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Download, Eye, X } from "lucide-react";
+import { Copy, Check, Download, Eye, Maximize2, X, Code2 } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -15,7 +15,8 @@ export default function CodeBlock({
   filename?: string;
 }) {
   const [copied, setCopied] = useState(false);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"code" | "preview">("code");
+  const [isFullScreenOpen, setIsFullScreenOpen] = useState(false);
 
   function copyToClipboard() {
     navigator.clipboard.writeText(code);
@@ -35,27 +36,56 @@ export default function CodeBlock({
     URL.revokeObjectURL(url);
   }
 
-  const isHtmlPreviewable =
-    language.toLowerCase() === "html" ||
-    (language.toLowerCase() === "javascript" && code.includes("<html>")) ||
-    (language.toLowerCase() === "jsx" && code.includes("return"));
+  const langLower = language.toLowerCase();
+  const isPreviewable =
+    langLower === "html" ||
+    langLower === "svg" ||
+    (langLower === "javascript" && (code.includes("<html>") || code.includes("<div"))) ||
+    (langLower === "jsx" && code.includes("<")) ||
+    (langLower === "tsx" && code.includes("<"));
 
   return (
-    <div className="my-4 rounded-lg border border-border bg-[#17161C] overflow-hidden text-sm shadow-lg">
+    <div className="my-4 rounded-lg border border-border bg-[#17161C] overflow-hidden text-sm shadow-xl">
       {/* Code Header Bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-border/60 text-xs text-muted">
-        <span className="font-mono font-medium text-accent">
-          {filename || language}
-        </span>
+      <div className="flex items-center justify-between px-3 py-2 bg-surface border-b border-border/60 text-xs text-muted">
         <div className="flex items-center gap-2">
-          {isHtmlPreviewable && (
+          <span className="font-mono font-medium text-accent">
+            {filename || language}
+          </span>
+
+          {isPreviewable && (
+            <div className="flex bg-ink rounded p-0.5 border border-border text-[11px]">
+              <button
+                onClick={() => setActiveTab("code")}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${
+                  activeTab === "code" ? "bg-surface-raised text-text font-medium" : "text-muted hover:text-text"
+                }`}
+              >
+                <Code2 size={12} /> Code
+              </button>
+              <button
+                onClick={() => setActiveTab("preview")}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${
+                  activeTab === "preview" ? "bg-accent text-ink font-medium" : "text-muted hover:text-text"
+                }`}
+              >
+                <Eye size={12} /> Live Preview
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isPreviewable && activeTab === "preview" && (
             <button
-              onClick={() => setIsPreviewOpen(true)}
-              className="flex items-center gap-1 hover:text-text px-2 py-1 rounded bg-surface-raised transition-colors"
+              onClick={() => setIsFullScreenOpen(true)}
+              className="flex items-center gap-1 text-muted hover:text-text px-2 py-1 rounded hover:bg-surface-raised transition-colors"
+              title="Full screen preview"
             >
-              <Eye size={13} /> Live Preview
+              <Maximize2 size={13} /> Full Screen
             </button>
           )}
+
           <button
             onClick={downloadSingleFile}
             className="flex items-center gap-1 hover:text-text px-2 py-1 rounded hover:bg-surface-raised transition-colors"
@@ -63,6 +93,7 @@ export default function CodeBlock({
           >
             <Download size={13} /> Save File
           </button>
+
           <button
             onClick={copyToClipboard}
             className="flex items-center gap-1 hover:text-text px-2 py-1 rounded hover:bg-surface-raised transition-colors"
@@ -73,29 +104,40 @@ export default function CodeBlock({
         </div>
       </div>
 
-      {/* Syntax Highlighted Code */}
-      <SyntaxHighlighter
-        language={language}
-        style={oneDark}
-        customStyle={{
-          margin: 0,
-          background: "#17161C",
-          padding: "1rem",
-          fontSize: "0.85rem",
-          lineHeight: "1.5",
-        }}
-      >
-        {code}
-      </SyntaxHighlighter>
+      {/* Body: Either Code View or Inline Real-Time Live Preview */}
+      {activeTab === "code" || !isPreviewable ? (
+        <SyntaxHighlighter
+          language={language}
+          style={oneDark}
+          customStyle={{
+            margin: 0,
+            background: "#17161C",
+            padding: "1rem",
+            fontSize: "0.85rem",
+            lineHeight: "1.5",
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      ) : (
+        <div className="w-full bg-white min-h-[250px] max-h-[500px] flex flex-col">
+          <iframe
+            srcDoc={code}
+            title="Inline Live Preview"
+            className="w-full h-[320px] border-none bg-white"
+            sandbox="allow-scripts"
+          />
+        </div>
+      )}
 
-      {/* HTML Live Preview Modal */}
-      {isPreviewOpen && (
+      {/* Full Screen Live Preview Modal */}
+      {isFullScreenOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm">
-          <div className="w-full max-w-4xl h-[80vh] bg-white rounded-lg flex flex-col overflow-hidden shadow-2xl">
+          <div className="w-full max-w-5xl h-[85vh] bg-white rounded-lg flex flex-col overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-2 bg-neutral-900 text-white text-sm">
-              <span>Live HTML/JS Preview</span>
+              <span className="font-mono text-accent">Full Screen Canvas Preview</span>
               <button
-                onClick={() => setIsPreviewOpen(false)}
+                onClick={() => setIsFullScreenOpen(false)}
                 className="text-neutral-400 hover:text-white"
               >
                 <X size={18} />
@@ -103,7 +145,7 @@ export default function CodeBlock({
             </div>
             <iframe
               srcDoc={code}
-              title="Preview"
+              title="Full Screen Preview"
               className="w-full flex-1 border-none bg-white"
               sandbox="allow-scripts"
             />

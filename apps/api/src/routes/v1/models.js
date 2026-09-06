@@ -1,13 +1,13 @@
 import { getActiveConfig } from "../../services/systemConfigService.js";
 
 /**
- * Custom Model Aliases mapping to underlying Groq / Cloud endpoints
+ * Custom Model Aliases mapping to underlying verified Groq Cloud endpoints
  */
 export const CUSTOM_MODELS = [
   {
     id: "kyro-ultra-70b",
     name: "Kyro Ultra (70B)",
-    providerModel: "llama-3.3-70b-versatile",
+    providerModel: "llama3-70b-8192",
     description: "Most capable model for complex reasoning, code generation, and deep analysis.",
   },
   {
@@ -32,8 +32,6 @@ export const CUSTOM_MODELS = [
 
 /**
  * GET /v1/models
- *
- * OpenAI-compatible models listing.
  */
 export default async function modelsRoute(fastify) {
   fastify.get(
@@ -55,7 +53,6 @@ export default async function modelsRoute(fastify) {
         owned_by: "kyro",
       }));
 
-      // Also include active model if custom alias not matched
       if (!modelsList.some((m) => m.id === config.activeModel)) {
         modelsList.unshift({
           id: config.activeModel,

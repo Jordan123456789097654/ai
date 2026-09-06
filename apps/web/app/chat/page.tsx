@@ -16,6 +16,11 @@ import {
   Globe,
   PanelRight,
   UserCheck,
+  Share2,
+  Swords,
+  BookOpen,
+  Terminal,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import JSZip from "jszip";
@@ -41,6 +46,21 @@ const PERSONAS = [
   { id: "architect", name: "SQL & Systems Architect", prompt: "You are a Principal Database & System Architect. Design optimal database schemas, indexes, and scalable infrastructure patterns." },
 ];
 
+const SLASH_COMMANDS = [
+  { cmd: "/refactor", label: "Refactor Code", desc: "Clean up code for modularity & performance", text: "Refactor and optimize this code snippet for performance and readability:\n\n" },
+  { cmd: "/explain", label: "Explain Step-by-Step", desc: "Break down logic step by step", text: "Explain how this code or concept works step-by-step with clear examples:\n\n" },
+  { cmd: "/unit-test", label: "Write Unit Tests", desc: "Generate test suite covering edge cases", text: "Write comprehensive unit tests covering edge cases and invalid inputs for:\n\n" },
+  { cmd: "/security", label: "Security Audit", desc: "Check for OWASP Top 10 vulnerabilities", text: "Perform a security audit looking for potential vulnerabilities and OWASP risks in:\n\n" },
+  { cmd: "/summarize", label: "Executive Summary", desc: "Summarize context concisely", text: "Provide a concise executive summary with key takeaways of:\n\n" },
+];
+
+const PROMPT_TEMPLATES = [
+  { title: "REST API Endpoint Template", prompt: "Design a clean RESTful API endpoint specification including request/response schemas, HTTP status codes, and TypeScript interfaces." },
+  { title: "Database Migration Script", prompt: "Write a SQL migration script with forward and rollback logic, optimal indexes, and foreign key constraints." },
+  { title: "Docker Container Setup", prompt: "Create a multi-stage Dockerfile optimized for small image size, security, and production deployment." },
+  { title: "React Component & Hooks", prompt: "Build a responsive React component using Tailwind CSS, proper accessibility (aria) tags, and clean custom hooks." },
+];
+
 export default function ChatPage() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -54,6 +74,17 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [isPersonaDropdownOpen, setIsPersonaDropdownOpen] = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
+
+  // Model Arena Mode State
+  const [isArenaMode, setIsArenaMode] = useState(false);
+  const [arenaModelB, setArenaModelB] = useState("kyro-ultra-70b");
+  const [arenaMessagesB, setArenaMessagesB] = useState<ChatMessage[]>([]);
+  const [arenaStatsA, setArenaStatsA] = useState<{ latencyMs: number; tokens: number } | null>(null);
+  const [arenaStatsB, setArenaStatsB] = useState<{ latencyMs: number; tokens: number } | null>(null);
+
+  // Modals & Popups
+  const [showPromptLibrary, setShowPromptLibrary] = useState(false);
 
   // Speech Recognition & TTS
   const [isListening, setIsListening] = useState(false);
@@ -79,7 +110,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, arenaMessagesB]);
 
   // Speech Recognition Setup
   useEffect(() => {
@@ -145,10 +176,13 @@ export default function ChatPage() {
   function startNewChat() {
     setConversationId(null);
     setMessages([]);
+    setArenaMessagesB([]);
     setError(null);
     setAttachments([]);
     setCanvasCode(null);
     setIsCanvasOpen(false);
+    setArenaStatsA(null);
+    setArenaStatsB(null);
   }
 
   async function ensureConversation(firstUserMessage: string): Promise<string> {
@@ -183,6 +217,20 @@ export default function ChatPage() {
     setIsCanvasOpen(true);
   }
 
+  async function shareConversationLink() {
+    let id = conversationId;
+    if (!id && messages.length > 0) {
+      const firstMsg = messages.find((m) => m.role === "user")?.content || "Shared Chat";
+      id = await ensureConversation(firstMsg);
+    }
+    if (!id) return;
+
+    const shareUrl = `${window.location.origin}/share/${id}`;
+    navigator.clipboard.writeText(shareUrl);
+    setCopiedShare(true);
+    setTimeout(() => setCopiedShare(false), 2000);
+  }
+
   async function sendMessage() {
     let text = input.trim();
     if (!text && attachments.length === 0) return;
@@ -211,6 +259,10 @@ export default function ChatPage() {
 
     const nextMessages: ChatMessage[] = [...messages, { role: "user", content: text }];
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
+    if (isArenaMode) {
+      setArenaMessagesB((prev) => [...prev, { role: "user", content: text }, { role: "assistant", content: "" }]);
+    }
+
     setInput("");
     setAttachments([]);
     setIsStreaming(true);
@@ -226,53 +278,36 @@ export default function ChatPage() {
 
     let token = await getSessionToken();
 
+    // Stream Model A (and Model B if Arena Mode enabled)
+    const streamModelA = streamResponse(token, selectedModel, [...payloadMessages, ...nextMessages], (chunkText, stats) => {
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content: chunkText };
+        return updated;
+      });
+      if (stats) setArenaStatsA(stats);
+    });
+
+    let streamModelB = Promise.resolve();
+    if (isArenaMode) {
+      streamModelB = streamResponse(token, arenaModelB, [...payloadMessages, ...nextMessages], (chunkText, stats) => {
+        setArenaMessagesB((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: "assistant", content: chunkText };
+          return updated;
+        });
+        if (stats) setArenaStatsB(stats);
+      });
+    }
+
     try {
-      let res = await makeChatRequest(token, selectedModel, [...payloadMessages, ...nextMessages]);
-
-      if (res.status === 401 && token) {
-        console.warn("[chat] Token invalid, retrying request as guest...");
-        res = await makeChatRequest(null, selectedModel, [...payloadMessages, ...nextMessages]);
+      const [assistantTextA] = await Promise.all([streamModelA, streamModelB]);
+      if (convoId && assistantTextA) {
+        persistMessage(convoId, "assistant", assistantTextA as string);
       }
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error?.message || `Error ${res.status}`);
-      }
-
-      if (!res.body) throw new Error("No response body");
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let assistantText = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-
-        for (const line of chunk.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          const payload = line.slice(5).trim();
-          if (payload === "[DONE]") continue;
-          try {
-            const json = JSON.parse(payload);
-            const delta = json.choices?.[0]?.delta?.content || "";
-            assistantText += delta;
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = { role: "assistant", content: assistantText };
-              return updated;
-            });
-          } catch {}
-        }
-      }
-
-      if (convoId && assistantText) {
-        persistMessage(convoId, "assistant", assistantText);
-      }
-
-      // Auto-detect code block to display in Canvas drawer if HTML/SVG/JS previewable
-      const htmlMatch = /```(html|xml|svg|jsx|tsx)\n([\s\S]*?)```/.exec(assistantText);
+      // Auto-detect code block for Canvas drawer
+      const htmlMatch = /```(html|xml|svg|jsx|tsx)\n([\s\S]*?)```/.exec((assistantTextA as string) || "");
       if (htmlMatch) {
         setCanvasCode(htmlMatch[2]);
         setCanvasLang(htmlMatch[1]);
@@ -280,10 +315,56 @@ export default function ChatPage() {
       }
     } catch (err: any) {
       setError(err.message || "Something went wrong");
-      setMessages((prev) => prev.slice(0, -1));
     } finally {
       setIsStreaming(false);
     }
+  }
+
+  async function streamResponse(
+    authToken: string | null,
+    modelName: string,
+    chatMessages: ChatMessage[],
+    onDelta: (text: string, stats?: { latencyMs: number; tokens: number }) => void
+  ): Promise<string> {
+    const startTime = Date.now();
+    let res = await makeChatRequest(authToken, modelName, chatMessages);
+
+    if (res.status === 401 && authToken) {
+      res = await makeChatRequest(null, modelName, chatMessages);
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error?.message || `Error ${res.status}`);
+    }
+
+    if (!res.body) throw new Error("No response body");
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let assistantText = "";
+    let tokenCount = 0;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        try {
+          const json = JSON.parse(payload);
+          const delta = json.choices?.[0]?.delta?.content || "";
+          assistantText += delta;
+          tokenCount++;
+          onDelta(assistantText, { latencyMs: Date.now() - startTime, tokens: tokenCount });
+        } catch {}
+      }
+    }
+
+    return assistantText;
   }
 
   async function makeChatRequest(authToken: string | null, modelName: string, chatMessages: ChatMessage[]) {
@@ -302,12 +383,10 @@ export default function ChatPage() {
     });
   }
 
-  /** Export entire chat & generated code blocks as a ZIP archive */
   async function exportChatZip() {
     if (messages.length === 0) return;
 
     const zip = new JSZip();
-
     let mdContent = `# Chat Export — Kyro AI\n\n`;
     messages.forEach((m) => {
       mdContent += `### ${m.role.toUpperCase()}\n${m.content}\n\n---\n\n`;
@@ -336,6 +415,11 @@ export default function ChatPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  // Filter slash commands
+  const matchingSlash = input.startsWith("/")
+    ? SLASH_COMMANDS.filter((sc) => sc.cmd.toLowerCase().startsWith(input.split(" ")[0].toLowerCase()))
+    : [];
 
   return (
     <div className="flex">
@@ -429,20 +513,49 @@ export default function ChatPage() {
                 <Globe size={14} />
                 <span>Search</span>
               </button>
+
+              {/* Model Arena Toggle */}
+              <button
+                onClick={() => setIsArenaMode(!isArenaMode)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs transition-colors ${
+                  isArenaMode
+                    ? "border-accent bg-accent text-ink font-medium"
+                    : "border-border bg-surface text-muted hover:text-text"
+                }`}
+                title="Toggle Model Arena Side-by-Side Comparison"
+              >
+                <Swords size={14} />
+                <span>Arena</span>
+              </button>
             </div>
 
             {/* Right Action Icons */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowPromptLibrary(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-border text-xs text-muted hover:text-text hover:bg-surface transition-colors"
+                title="Open Prompt Library"
+              >
+                <BookOpen size={14} /> Prompts
+              </button>
+
+              <button
+                onClick={shareConversationLink}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-border text-xs text-muted hover:text-text hover:bg-surface transition-colors"
+                title="Copy shareable link"
+              >
+                <Share2 size={14} /> {copiedShare ? "Copied!" : "Share"}
+              </button>
+
               {canvasCode && (
                 <button
                   onClick={() => setIsCanvasOpen(!isCanvasOpen)}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs ${
                     isCanvasOpen ? "border-accent bg-accent text-ink font-medium" : "border-border text-muted hover:text-text"
                   }`}
-                  title="Toggle Claude-Style Canvas Drawer"
+                  title="Toggle Canvas Drawer"
                 >
-                  <PanelRight size={14} />
-                  <span>Canvas</span>
+                  <PanelRight size={14} /> Canvas
                 </button>
               )}
 
@@ -450,84 +563,146 @@ export default function ChatPage() {
                 <button
                   onClick={exportChatZip}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-border text-xs text-muted hover:text-text hover:bg-surface transition-colors"
-                  title="Export chat & generated files as a ZIP archive"
+                  title="Export ZIP"
                 >
-                  <Archive size={14} /> Export ZIP
+                  <Archive size={14} /> ZIP
                 </button>
               )}
             </div>
           </div>
 
-          {/* Messages view */}
-          <div className="flex-1 overflow-y-auto py-6 space-y-6">
-            {messages.length === 0 && !error && (
-              <div className="mt-16 text-center space-y-3">
-                <h2 className="font-display text-2xl text-text">What can Kyro help you build today?</h2>
-                <p className="text-muted text-sm max-w-md mx-auto">
-                  Powered by custom AI models. Upload code, generate apps with live Canvas split drawer, and export generated files as ZIPs.
-                </p>
-              </div>
-            )}
-
-            {messages.map((m, i) => (
-              <div key={i} className={m.role === "user" ? "text-right" : ""}>
-                <div
-                  className={`inline-block max-w-[90%] rounded-lg px-4 py-3 text-left relative group ${
-                    m.role === "user" ? "bg-surface-raised text-text" : "bg-surface border border-border"
-                  }`}
-                >
-                  <ReactMarkdown
-                    components={{
-                      code({ node, inline, className, children, ...props }: any) {
-                        const match = /language-(\w+)/.exec(className || "");
-                        const codeStr = String(children).replace(/\n$/, "");
-                        return !inline && match ? (
-                          <div className="relative group/code my-2">
-                            <CodeBlock code={codeStr} language={match[1]} />
-                            <button
-                              onClick={() => openCanvasDrawer(codeStr, match[1])}
-                              className="absolute top-2 right-12 bg-surface-raised border border-border text-muted hover:text-accent text-[11px] px-2 py-1 rounded opacity-0 group-hover/code:opacity-100 transition-opacity flex items-center gap-1"
-                            >
-                              <PanelRight size={12} /> Open in Canvas
-                            </button>
-                          </div>
-                        ) : (
-                          <code className="bg-ink px-1.5 py-0.5 rounded text-accent font-mono text-xs" {...props}>
-                            {children}
-                          </code>
-                        );
-                      },
-                    }}
-                  >
-                    {m.content || (isStreaming && i === messages.length - 1 ? "..." : "")}
-                  </ReactMarkdown>
-
-                  {m.role === "assistant" && m.content && (
-                    <button
-                      onClick={() => speakText(i, m.content)}
-                      className="mt-2 text-xs text-muted hover:text-accent flex items-center gap-1 transition-colors"
-                      title="Read aloud"
-                    >
-                      {speakingIdx === i ? <VolumeX size={13} className="text-accent animate-pulse" /> : <Volume2 size={13} />}
-                      <span>{speakingIdx === i ? "Stop" : "Listen"}</span>
-                    </button>
-                  )}
+          {/* Chat Split View (Normal or Arena Mode) */}
+          <div className="flex-1 overflow-hidden flex gap-4">
+            {/* Model A Thread */}
+            <div className="flex-1 overflow-y-auto py-6 space-y-6">
+              {isArenaMode && (
+                <div className="bg-surface border border-border p-2 rounded text-xs font-mono flex items-center justify-between text-accent">
+                  <span>Model A: {MODELS.find((m) => m.id === selectedModel)?.name}</span>
+                  {arenaStatsA && <span>{arenaStatsA.latencyMs}ms | {arenaStatsA.tokens} tok</span>}
                 </div>
-              </div>
-            ))}
+              )}
 
-            {error && (
-              <div className="text-center">
-                <p className="inline-block text-danger text-sm bg-surface border border-danger/30 rounded px-4 py-2">
-                  {error}
-                </p>
+              {messages.length === 0 && !error && (
+                <div className="mt-16 text-center space-y-3">
+                  <h2 className="font-display text-2xl text-text">What can Kyro help you build today?</h2>
+                  <p className="text-muted text-sm max-w-md mx-auto">
+                    Type <code className="text-accent font-mono bg-surface px-1 py-0.5 rounded">/</code> for slash commands or launch Model Arena.
+                  </p>
+                </div>
+              )}
+
+              {messages.map((m, i) => (
+                <div key={i} className={m.role === "user" ? "text-right" : ""}>
+                  <div
+                    className={`inline-block max-w-[90%] rounded-lg px-4 py-3 text-left relative group ${
+                      m.role === "user" ? "bg-surface-raised text-text" : "bg-surface border border-border"
+                    }`}
+                  >
+                    <ReactMarkdown
+                      components={{
+                        code({ node, inline, className, children, ...props }: any) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          const codeStr = String(children).replace(/\n$/, "");
+                          return !inline && match ? (
+                            <div className="relative group/code my-2">
+                              <CodeBlock code={codeStr} language={match[1]} />
+                              <button
+                                onClick={() => openCanvasDrawer(codeStr, match[1])}
+                                className="absolute top-2 right-12 bg-surface-raised border border-border text-muted hover:text-accent text-[11px] px-2 py-1 rounded opacity-0 group-hover/code:opacity-100 transition-opacity flex items-center gap-1"
+                              >
+                                <PanelRight size={12} /> Open in Canvas
+                              </button>
+                            </div>
+                          ) : (
+                            <code className="bg-ink px-1.5 py-0.5 rounded text-accent font-mono text-xs" {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {m.content || (isStreaming && i === messages.length - 1 ? "..." : "")}
+                    </ReactMarkdown>
+
+                    {m.role === "assistant" && m.content && (
+                      <button
+                        onClick={() => speakText(i, m.content)}
+                        className="mt-2 text-xs text-muted hover:text-accent flex items-center gap-1 transition-colors"
+                        title="Read aloud"
+                      >
+                        {speakingIdx === i ? <VolumeX size={13} className="text-accent animate-pulse" /> : <Volume2 size={13} />}
+                        <span>{speakingIdx === i ? "Stop" : "Listen"}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {error && (
+                <div className="text-center">
+                  <p className="inline-block text-danger text-sm bg-surface border border-danger/30 rounded px-4 py-2">
+                    {error}
+                  </p>
+                </div>
+              )}
+              <div ref={scrollRef} />
+            </div>
+
+            {/* Model B Thread (Arena Mode) */}
+            {isArenaMode && (
+              <div className="flex-1 overflow-y-auto py-6 space-y-6 border-l border-border pl-4">
+                <div className="bg-surface border border-border p-2 rounded text-xs font-mono flex items-center justify-between text-accent">
+                  <select
+                    value={arenaModelB}
+                    onChange={(e) => setArenaModelB(e.target.value)}
+                    className="bg-transparent outline-none font-bold text-accent"
+                  >
+                    {MODELS.map((m) => (
+                      <option key={m.id} value={m.id} className="bg-surface text-text">
+                        Model B: {m.name}
+                      </option>
+                    ))}
+                  </select>
+                  {arenaStatsB && <span>{arenaStatsB.latencyMs}ms | {arenaStatsB.tokens} tok</span>}
+                </div>
+
+                {arenaMessagesB.map((m, i) => (
+                  <div key={i} className={m.role === "user" ? "text-right" : ""}>
+                    <div
+                      className={`inline-block max-w-[90%] rounded-lg px-4 py-3 text-left ${
+                        m.role === "user" ? "bg-surface-raised text-text" : "bg-surface border border-border"
+                      }`}
+                    >
+                      <ReactMarkdown>{m.content || "..."}</ReactMarkdown>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-            <div ref={scrollRef} />
           </div>
 
+          {/* Slash Commands Dropdown */}
+          {matchingSlash.length > 0 && (
+            <div className="bg-surface border border-border rounded shadow-2xl p-1 mb-2 max-h-48 overflow-y-auto">
+              {matchingSlash.map((sc) => (
+                <button
+                  key={sc.cmd}
+                  onClick={() => setInput(sc.text)}
+                  className="w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-surface-raised rounded"
+                >
+                  <div className="flex items-center gap-2 font-mono text-accent">
+                    <Terminal size={14} />
+                    <span>{sc.cmd}</span>
+                    <span className="text-text font-sans text-xs font-medium">{sc.label}</span>
+                  </div>
+                  <span className="text-[10px] text-muted">{sc.desc}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Input Bar */}
-          <div className="border-t border-border py-4 space-y-2">
+          <div className="border-t border-border py-4 space-y-2 relative">
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 text-xs">
                 {attachments.map((att, idx) => (
@@ -545,13 +720,7 @@ export default function ChatPage() {
             )}
 
             <div className="flex gap-2 items-end">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                multiple
-                className="hidden"
-              />
+              <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple className="hidden" />
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="p-2.5 rounded border border-border text-muted hover:text-text hover:bg-surface transition-colors"
@@ -565,7 +734,7 @@ export default function ChatPage() {
                 className={`p-2.5 rounded border transition-colors ${
                   isListening ? "border-danger bg-danger/10 text-danger animate-pulse" : "border-border text-muted hover:text-text hover:bg-surface"
                 }`}
-                title={isListening ? "Listening... click to stop" : "Voice Input (Speech-to-Text)"}
+                title={isListening ? "Listening..." : "Voice Input"}
               >
                 {isListening ? <MicOff size={18} /> : <Mic size={18} />}
               </button>
@@ -579,7 +748,7 @@ export default function ChatPage() {
                     sendMessage();
                   }
                 }}
-                placeholder={isListening ? "Listening to voice input..." : "Message Kyro or attach files..."}
+                placeholder={isListening ? "Listening to voice..." : "Message Kyro or type / for slash commands..."}
                 rows={1}
                 className="flex-1 resize-none bg-surface border border-border rounded px-4 py-2.5 text-sm outline-none focus:border-accent"
               />
@@ -637,6 +806,38 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {/* Prompt Library Modal */}
+      {showPromptLibrary && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-display text-lg text-text flex items-center gap-2">
+                <BookOpen size={18} className="text-accent" /> Prompt Template Library
+              </h3>
+              <button onClick={() => setShowPromptLibrary(false)} className="text-muted hover:text-text">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {PROMPT_TEMPLATES.map((tmpl, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setInput(tmpl.prompt);
+                    setShowPromptLibrary(false);
+                  }}
+                  className="w-full text-left p-3 rounded bg-surface-raised border border-border hover:border-accent space-y-1 transition-colors"
+                >
+                  <p className="text-xs font-semibold text-accent">{tmpl.title}</p>
+                  <p className="text-xs text-muted line-clamp-2">{tmpl.prompt}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

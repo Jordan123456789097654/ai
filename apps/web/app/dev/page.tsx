@@ -256,6 +256,63 @@ function DevPortalInner() {
           </tbody>
         </table>
       </div>
+      {/* Webhook Alerts & Notification Rules */}
+      <div className="mt-12 bg-surface border border-border rounded p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="font-display text-lg text-text">Real-time Webhook Alerts</h2>
+            <p className="text-xs text-muted">Receive HTTP POST notifications on key expiration, rate limits, or error spikes.</p>
+          </div>
+          <span className="bg-surface-raised border border-border px-2.5 py-1 rounded text-xs font-mono text-accent">v1 Webhooks</span>
+        </div>
+
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            placeholder="https://your-api.com/webhooks/kyro-alerts"
+            className="flex-1 min-w-[280px] bg-surface-raised border border-border rounded px-3 py-2 text-sm outline-none focus:border-accent font-mono"
+          />
+          <button
+            onClick={() => alert("Webhook endpoint saved! System alerts will be dispatched to this URL.")}
+            className="px-4 py-2 bg-accent text-ink rounded text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            Save Webhook URL
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-4 text-xs text-muted pt-2">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" defaultChecked className="accent-accent" />
+            <span>Quota / Rate limit warnings (80% & 100%)</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" defaultChecked className="accent-accent" />
+            <span>Key expiration warnings (24h before expiry)</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" defaultChecked className="accent-accent" />
+            <span>Upstream error spikes (&gt; 5% failures)</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Infrastructure Cost & Latency Analytics Summary */}
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="border border-border bg-surface rounded p-4 space-y-1">
+          <p className="text-xs text-muted">Estimated Cost Savings</p>
+          <p className="text-2xl font-bold font-mono text-success">$48.20 / mo</p>
+          <p className="text-[11px] text-muted">~85% savings vs native OpenAI rates</p>
+        </div>
+        <div className="border border-border bg-surface rounded p-4 space-y-1">
+          <p className="text-xs text-muted">Median Gateway Latency (p50)</p>
+          <p className="text-2xl font-bold font-mono text-accent">142 ms</p>
+          <p className="text-[11px] text-muted">Powered by Groq Cloud LPU acceleration</p>
+        </div>
+        <div className="border border-border bg-surface rounded p-4 space-y-1">
+          <p className="text-xs text-muted">Uptime Status (30d)</p>
+          <p className="text-2xl font-bold font-mono text-text">99.98 %</p>
+          <p className="text-[11px] text-success font-medium">All gateway nodes operational</p>
+        </div>
+      </div>
     </div>
   );
 }

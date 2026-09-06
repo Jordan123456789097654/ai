@@ -10,7 +10,6 @@ import type { User } from "@supabase/supabase-js";
 const PUBLIC_LINKS = [
   { href: "/chat", label: "Chat" },
   { href: "/templates", label: "Templates" },
-  { href: "/code-audit", label: "Code Security" },
   { href: "/tickets", label: "Tickets" },
   { href: "/docs", label: "Docs" },
   { href: "/status", label: "Status" },
@@ -69,7 +68,12 @@ export default function SiteNav() {
   const links = [
     ...PUBLIC_LINKS,
     ...(user ? AUTHED_LINKS : []),
-    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
+    ...(isAdmin
+      ? [
+          { href: "/admin", label: "Admin" },
+          { href: "/code-audit", label: "Code Security" },
+        ]
+      : []),
   ];
 
   return (

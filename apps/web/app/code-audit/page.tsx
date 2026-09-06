@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ShieldCheck, ShieldAlert, Key, RefreshCw, Clock, AlertTriangle, CheckCircle2, Lock, Sparkles, Terminal, FileCode } from "lucide-react";
 import { apiFetch } from "../../lib/api";
+import AuthGuard from "../../components/AuthGuard";
 
 type VulnerabilityIssue = {
   severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
@@ -23,6 +24,14 @@ type SecretScanResult = {
 };
 
 export default function CodeAuditPage() {
+  return (
+    <AuthGuard adminOnly>
+      <CodeAuditInner />
+    </AuthGuard>
+  );
+}
+
+function CodeAuditInner() {
   const [codeSnippet, setCodeSnippet] = useState(`// Sample backend controller
 import { Client } from "pg";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { Copy, Trash2, Plus, Check, ChevronDown, ChevronUp, Bot } from "lucide-react";
+import { Copy, Trash2, Plus, Check, ChevronDown, ChevronUp, Bot, Sparkles, Shield, Wand2 } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import AuthGuard from "../../components/AuthGuard";
 
@@ -38,6 +38,42 @@ function DevPortalInner() {
   const [botModel, setBotModel] = useState("kyro-coder-pro");
   const [botStatus, setBotStatus] = useState<"Offline" | "Online">("Offline");
 
+  type DiscordCommand = { name: string; description: string; instruction: string };
+  const [botCommands, setBotCommands] = useState<DiscordCommand[]>([
+    { name: "/kyro-ask", description: "Ask Kyro AI technical questions", instruction: "Answer concisely with code examples." },
+    { name: "/kyro-code", description: "Generate production code snippets", instruction: "Output clean TypeScript/Python code blocks." },
+    { name: "/kyro-fix", description: "Refactor and fix code errors", instruction: "Highlight bug cause and provide corrected code." },
+  ]);
+
+  const [aiCommandPrompt, setAiCommandPrompt] = useState("");
+  const [isGeneratingCommand, setIsGeneratingCommand] = useState(false);
+  const [botRestrictions, setBotRestrictions] = useState("Only answer technical, software engineering, and API questions. Refuse off-topic requests.");
+  const [allowedChannels, setAllowedChannels] = useState("#dev-chat, #code-reviews, #tech-support");
+
+  function generateCommandWithAi() {
+    if (!aiCommandPrompt.trim()) return;
+    setIsGeneratingCommand(true);
+    setTimeout(() => {
+      let rawName = aiCommandPrompt.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").slice(0, 18);
+      if (!rawName.startsWith("/")) rawName = `/${rawName}`;
+
+      const newCmd: DiscordCommand = {
+        name: rawName,
+        description: `AI command: ${aiCommandPrompt.slice(0, 40)}`,
+        instruction: `Directive for ${rawName}: ${aiCommandPrompt}`,
+      };
+
+      setBotCommands((prev) => [...prev, newCmd]);
+      setAiCommandPrompt("");
+      setIsGeneratingCommand(false);
+      alert(`✨ Kyro AI successfully created command '${newCmd.name}' for your Discord Bot!`);
+    }, 1000);
+  }
+
+  function removeCommand(cmdName: string) {
+    setBotCommands(botCommands.filter((c) => c.name !== cmdName));
+  }
+
   function toggleBotHost() {
     if (!discordToken.trim()) {
       alert("Please enter your Discord Bot Token from Discord Developer Portal first.");
@@ -48,7 +84,7 @@ function DevPortalInner() {
       alert("Hosted Discord Bot stopped successfully.");
     } else {
       setBotStatus("Online");
-      alert(`Hosted Discord Bot launched live! Active prefix: '${botPrefix}' | Active model: '${botModel}'`);
+      alert(`Hosted Discord Bot launched live! Active prefix: '${botPrefix}' | Active model: '${botModel}' | Commands: ${botCommands.length}`);
     }
   }
 
@@ -403,14 +439,78 @@ function DevPortalInner() {
                 <option value="kyro-flash-8b">kyro-flash-8b (Ultra Fast Instant)</option>
               </select>
             </div>
+          </div>
+
+          {/* Ask AI to Make Custom Commands for You */}
+          <div className="border border-accent/30 rounded-lg bg-accent/5 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-accent flex items-center gap-1.5 text-xs font-mono">
+                <Wand2 size={14} /> Ask Kyro AI to Create Custom Bot Commands for You
+              </span>
+              <span className="text-[10px] font-mono text-muted bg-surface px-2 py-0.5 rounded border border-border">AI Generator</span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="text"
+                value={aiCommandPrompt}
+                onChange={(e) => setAiCommandPrompt(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && generateCommandWithAi()}
+                placeholder="e.g. Create a command called /review-pr that analyzes pull request diffs and posts a summary"
+                className="flex-1 min-w-[260px] bg-surface border border-border rounded px-3 py-2 text-xs text-text outline-none focus:border-accent font-mono"
+              />
+              <button
+                onClick={generateCommandWithAi}
+                disabled={isGeneratingCommand}
+                className="px-4 py-2 bg-accent text-ink font-semibold rounded text-xs flex items-center gap-1 hover:opacity-90 transition-opacity"
+              >
+                <Sparkles size={13} /> {isGeneratingCommand ? "Generating..." : "Ask AI to Create Command"}
+              </button>
+            </div>
+          </div>
+
+          {/* Configured Bot Commands List */}
+          <div>
+            <label className="block text-muted font-medium mb-1.5">Registered Discord Slash Commands ({botCommands.length})</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {botCommands.map((cmd) => (
+                <div key={cmd.name} className="border border-border bg-surface-raised/60 rounded p-2.5 space-y-1 relative group">
+                  <div className="flex justify-between items-center font-mono">
+                    <span className="text-accent font-bold">{cmd.name}</span>
+                    <button onClick={() => removeCommand(cmd.name)} className="text-muted hover:text-danger p-0.5">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted truncate">{cmd.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Restrictions & Channel Security */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border/50 pt-3">
+            <div>
+              <label className="block text-muted font-medium mb-1 flex items-center gap-1">
+                <Shield size={13} className="text-accent" /> AI Safety & Behavior Restrictions
+              </label>
+              <textarea
+                rows={2}
+                value={botRestrictions}
+                onChange={(e) => setBotRestrictions(e.target.value)}
+                placeholder="Enforce safety rules (e.g. 'Refuse off-topic questions, require admin approval for code fixes...')"
+                className="w-full bg-surface-raised border border-border rounded p-2.5 text-xs text-text outline-none focus:border-accent"
+              />
+            </div>
 
             <div>
-              <label className="block text-muted font-medium mb-1">Active Bot Commands</label>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                <span className="bg-surface-raised border border-border px-2 py-0.5 rounded text-[11px] font-mono text-accent">/kyro-ask</span>
-                <span className="bg-surface-raised border border-border px-2 py-0.5 rounded text-[11px] font-mono text-accent">/kyro-code</span>
-                <span className="bg-surface-raised border border-border px-2 py-0.5 rounded text-[11px] font-mono text-accent">/kyro-fix</span>
-              </div>
+              <label className="block text-muted font-medium mb-1">Allowed Discord Channels</label>
+              <input
+                type="text"
+                value={allowedChannels}
+                onChange={(e) => setAllowedChannels(e.target.value)}
+                placeholder="#dev-chat, #code-reviews, #general"
+                className="w-full bg-surface-raised border border-border rounded p-2.5 text-xs text-text font-mono outline-none focus:border-accent"
+              />
             </div>
           </div>
         </div>

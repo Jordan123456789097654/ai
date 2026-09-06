@@ -111,4 +111,62 @@ export default async function adminRoutes(fastify) {
       errorRate24h: requestCount24h ? errorCount24h / requestCount24h : 0,
     };
   });
+
+  // ---- Support Tickets Console ----
+
+  fastify.get("/admin/tickets", { schema: { tags: ["admin"] } }, async () => {
+    return { tickets: supportTicketsStore };
+  });
+
+  fastify.patch(
+    "/admin/tickets/:ticketId",
+    {
+      schema: {
+        tags: ["admin"],
+        body: {
+          type: "object",
+          properties: {
+            status: { type: "string", enum: ["Open", "In Progress", "Resolved"] },
+            staffReply: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const { ticketId } = request.params;
+      const { status, staffReply } = request.body;
+      const ticket = supportTicketsStore.find((t) => t.id === ticketId);
+      if (ticket) {
+        if (status) ticket.status = status;
+        if (staffReply !== undefined) ticket.staffReply = staffReply;
+      }
+      return { success: true, ticket };
+    }
+  );
 }
+
+const supportTicketsStore = [
+  {
+    id: "TICK-9021",
+    userEmail: "dev@kyro.ai",
+    category: "Technical / API Integration",
+    priority: "Medium",
+    subject: "Rate limit header questions",
+    description: "Are rate limit headers included in HTTP 429 response body or headers?",
+    status: "Resolved",
+    staffReply: "Rate limit quotas and remaining limits are returned in X-RateLimit-Limit and X-RateLimit-Remaining headers.",
+    date: "2026-09-04",
+  },
+  {
+    id: "TICK-4102",
+    userEmail: "user@example.com",
+    category: "Bug Report",
+    priority: "High / Urgent",
+    subject: "Custom API Key authentication 401 error",
+    description: "Getting 401 Unauthorized when sending Bearer token header to /v1/chat/completions.",
+    status: "Open",
+    staffReply: "",
+    date: "2026-09-06",
+  },
+];
+

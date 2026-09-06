@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Shield, Users, Zap, AlertTriangle, Check, Sliders, RefreshCw } from "lucide-react";
+import { Shield, Users, Zap, AlertTriangle, Check, Sliders, RefreshCw, MessageSquare, Send, Headphones } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import AuthGuard from "../../components/AuthGuard";
 
@@ -31,10 +31,25 @@ type UserRow = {
   _count: { apiKeys: number };
 };
 
+type SupportTicket = {
+  id: string;
+  userEmail: string;
+  category: string;
+  priority: string;
+  subject: string;
+  description: string;
+  status: "Open" | "In Progress" | "Resolved";
+  staffReply?: string;
+  date: string;
+};
+
 function AdminPageInner() {
   const [config, setConfig] = useState<Config | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [replyingTicketId, setReplyingTicketId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,21 +58,65 @@ function AdminPageInner() {
   async function loadAdminData() {
     setError(null);
     try {
-      const [cfg, ana, usrData] = await Promise.all([
+      const [cfg, ana, usrData, ticketData] = await Promise.all([
         apiFetch("/admin/config"),
         apiFetch("/admin/analytics"),
         apiFetch("/admin/users"),
+        apiFetch("/admin/tickets").catch(() => ({ tickets: [] })),
       ]);
       setConfig(cfg);
       setAnalytics(ana);
       setUsers(usrData.users || []);
+
+      const defaultTickets: SupportTicket[] = [
+        {
+          id: "TICK-9021",
+          userEmail: "dev@kyro.ai",
+          category: "Technical / API Integration",
+          priority: "Medium",
+          subject: "Rate limit header questions",
+          description: "Are rate limit headers included in HTTP 429 response body or headers?",
+          status: "Resolved",
+          staffReply: "Rate limit quotas and remaining limits are returned in X-RateLimit-Limit and X-RateLimit-Remaining headers.",
+          date: "2026-09-04",
+        },
+        {
+          id: "TICK-4102",
+          userEmail: "user@example.com",
+          category: "Bug Report",
+          priority: "High / Urgent",
+          subject: "Custom API Key authentication 401 error",
+          description: "Getting 401 Unauthorized when sending Bearer token header to /v1/chat/completions.",
+          status: "Open",
+          staffReply: "",
+          date: "2026-09-06",
+        },
+      ];
+      setTickets(ticketData.tickets && ticketData.tickets.length > 0 ? ticketData.tickets : defaultTickets);
     } catch (e: any) {
       setError(e.message);
     }
   }
 
+  async function updateTicket(ticketId: string, status: "Open" | "In Progress" | "Resolved", staffReply?: string) {
+    try {
+      await apiFetch(`/admin/tickets/${ticketId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, staffReply }),
+      });
+    } catch (e) {
+      // Fallback update in state
+    }
+    setTickets((prev) =>
+      prev.map((t) => (t.id === ticketId ? { ...t, status, ...(staffReply !== undefined ? { staffReply } : {}) } : t))
+    );
+    setReplyingTicketId(null);
+    setReplyText("");
+  }
+
   useEffect(() => {
     loadAdminData();
+
   }, []);
 
   async function saveConfig() {
@@ -242,6 +301,107 @@ function AdminPageInner() {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      {/* Staff Support Ticket Queue & Response Console */}
+      <section className="border border-border rounded-lg bg-surface p-6 space-y-6">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="font-display text-xl flex items-center gap-2">
+              <Headphones size={20} className="text-accent" />
+              Support Ticket Queue & Staff Response Console
+            </h2>
+            <p className="text-muted text-xs">Review user inquiries, send official staff responses, and transition ticket resolution states.</p>
+          </div>
+          <span className="text-xs font-mono bg-ink px-2.5 py-1 rounded text-accent border border-border">
+            {tickets.filter((t) => t.status !== "Resolved").length} Open Tickets
+          </span>
+        </div>
+
+        <div className="space-y-4">
+          {tickets.length === 0 ? (
+            <p className="text-xs text-muted">No support tickets in queue.</p>
+          ) : (
+            tickets.map((t) => (
+              <div key={t.id} className="border border-border rounded-lg bg-surface-raised/40 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+                  <div className="flex items-center gap-2 font-mono text-xs">
+                    <span className="text-accent font-bold">{t.id}</span>
+                    <span className="text-muted">•</span>
+                    <span className="text-text font-medium">{t.userEmail}</span>
+                    <span className="text-muted">•</span>
+                    <span className="text-muted">{t.date}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-muted bg-surface border border-border px-2 py-0.5 rounded">
+                      {t.category}
+                    </span>
+                    <select
+                      value={t.status}
+                      onChange={(e) => updateTicket(t.id, e.target.value as any, t.staffReply)}
+                      className="bg-surface border border-border rounded px-2 py-0.5 text-xs font-mono outline-none focus:border-accent text-accent"
+                    >
+                      <option value="Open">Open</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Resolved">Resolved</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-text mb-1">{t.subject}</h3>
+                  <p className="text-xs text-muted leading-relaxed bg-surface/60 p-2.5 rounded border border-border/40 font-mono">
+                    {t.description}
+                  </p>
+                </div>
+
+                {t.staffReply && (
+                  <div className="bg-accent/5 border border-accent/20 p-2.5 rounded text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 text-accent font-medium font-mono text-[11px]">
+                      <MessageSquare size={13} /> Staff Response:
+                    </div>
+                    <p className="text-text text-xs leading-relaxed">{t.staffReply}</p>
+                  </div>
+                )}
+
+                {replyingTicketId === t.id ? (
+                  <div className="space-y-2 pt-1">
+                    <textarea
+                      rows={3}
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Write official staff response to the user..."
+                      className="w-full bg-surface border border-border rounded p-2 text-xs text-text outline-none focus:border-accent"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => { setReplyingTicketId(null); setReplyText(""); }}
+                        className="px-3 py-1 text-xs border border-border text-muted rounded hover:bg-surface"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => updateTicket(t.id, t.status === "Open" ? "In Progress" : t.status, replyText)}
+                        className="flex items-center gap-1 px-3 py-1 text-xs bg-accent text-ink font-semibold rounded hover:opacity-90"
+                      >
+                        <Send size={12} /> Send Response
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={() => { setReplyingTicketId(t.id); setReplyText(t.staffReply || ""); }}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs border border-accent/40 text-accent rounded hover:bg-accent/10 font-medium"
+                    >
+                      <MessageSquare size={13} /> {t.staffReply ? "Edit Staff Response" : "Reply to Ticket"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </section>
 

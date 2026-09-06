@@ -18,6 +18,8 @@ import discordRoute from "./routes/discord.js";
 import slackRoute from "./routes/slack.js";
 import ticketsRoute from "./routes/tickets.js";
 import slidesRoute from "./routes/slides.js";
+import audioRoute from "./routes/v1/audio.js";
+import auditRoute from "./routes/audit.js";
 
 const fastify = Fastify({ logger: true, trustProxy: true });
 
@@ -100,6 +102,7 @@ fastify.route({
 await fastify.register(chatCompletionsRoute);
 await fastify.register(modelsRoute);
 await fastify.register(imageGenerationsRoute);
+await fastify.register(audioRoute);
 
 // Public auth surface — signup / magic-link
 await fastify.register(authRoutes);
@@ -112,6 +115,7 @@ await fastify.register(discordRoute);
 await fastify.register(slackRoute);
 await fastify.register(ticketsRoute);
 await fastify.register(slidesRoute);
+await fastify.register(auditRoute);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 fastify.get("/health", async (_request, reply) => {

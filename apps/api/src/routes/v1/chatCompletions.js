@@ -6,12 +6,17 @@ import { prisma } from "../../lib/prisma.js";
 import { CUSTOM_MODELS } from "./models.js";
 
 /**
- * POST /v1/chat/completions
- *
- * OpenAI-compatible endpoint supporting custom Kyro model aliases,
- * streaming, and prompt/RAG context injection.
+ * POST /v1/chat/completions & GET /v1/chat/completions (info route)
  */
 export default async function chatCompletionsRoute(fastify) {
+  // Helpful GET route so visiting in browser explains it's a POST endpoint
+  fastify.get("/v1/chat/completions", async (_request, reply) => {
+    return reply.send({
+      message: "Kyro OpenAI-compatible Chat Completions API endpoint. Send a POST request with { messages: [...] }.",
+      docs: "/docs",
+    });
+  });
+
   fastify.post(
     "/v1/chat/completions",
     {
@@ -75,7 +80,11 @@ export default async function chatCompletionsRoute(fastify) {
       } catch (err) {
         request.log.error(err, "inference call failed");
         return reply.code(502).send({
-          error: { message: "Inference server unavailable", type: "upstream_error", code: 502 },
+          error: {
+            message: err.message || "Inference server unavailable. Please check INFERENCE_API_KEY in Render.",
+            type: "upstream_error",
+            code: 502,
+          },
         });
       }
 

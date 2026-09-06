@@ -349,7 +349,7 @@ export default function ChatPage() {
       if (stats) setArenaStatsA(stats);
     });
 
-    let streamModelB = Promise.resolve();
+    let streamModelB: Promise<string | void> = Promise.resolve();
     if (isArenaMode) {
       streamModelB = streamResponse(token, arenaModelB, [...payloadMessages, ...nextMessages], (chunkText, stats) => {
         setArenaMessagesB((prev) => {

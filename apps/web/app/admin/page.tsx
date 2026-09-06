@@ -198,16 +198,23 @@ function AdminPageInner() {
 
                   {/* Rate Limit Tier Selector */}
                   <td className="px-4 py-3">
-                    <select
-                      value={u.tier}
-                      disabled={userUpdating[u.id]}
-                      onChange={(e) => updateUserTier(u.id, e.target.value as "free" | "pro" | "enterprise")}
-                      className="bg-surface border border-border rounded px-2 py-1 text-xs font-mono text-accent outline-none focus:border-accent"
-                    >
-                      <option value="free">Free (20 req/m)</option>
-                      <option value="pro">Pro (120 req/m)</option>
-                      <option value="enterprise">Enterprise (1000 req/m)</option>
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={u.tier}
+                        disabled={userUpdating[u.id]}
+                        onChange={(e) => updateUserTier(u.id, e.target.value as "free" | "pro" | "enterprise")}
+                        className="bg-surface border border-border rounded px-2 py-1 text-xs font-mono text-accent outline-none focus:border-accent"
+                      >
+                        <option value="free">Free (20 req/m)</option>
+                        <option value="pro">Pro (120 req/m)</option>
+                        <option value="enterprise">Enterprise (1000 req/m)</option>
+                      </select>
+                      {u.tier === "enterprise" && (
+                        <span className="bg-accent/10 border border-accent text-accent px-1.5 py-0.5 rounded text-[10px] font-mono">
+                          Bypass Active
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="px-4 py-3 font-mono text-xs text-muted">{u._count.apiKeys} keys</td>

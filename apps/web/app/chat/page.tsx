@@ -21,6 +21,8 @@ import {
   BookOpen,
   Terminal,
   Check,
+  Bot,
+  HelpCircle,
 } from "lucide-react";
 import Link from "next/link";
 import JSZip from "jszip";
@@ -82,6 +84,16 @@ export default function ChatPage() {
   const [arenaMessagesB, setArenaMessagesB] = useState<ChatMessage[]>([]);
   const [arenaStatsA, setArenaStatsA] = useState<{ latencyMs: number; tokens: number } | null>(null);
   const [arenaStatsB, setArenaStatsB] = useState<{ latencyMs: number; tokens: number } | null>(null);
+
+  // Autonomous Agent & Clarification Modal State
+  const [isAgentMode, setIsAgentMode] = useState(false);
+  const [showClarifyModal, setShowClarifyModal] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState("");
+  const [clarifyAnswers, setClarifyAnswers] = useState({
+    target: "REST API",
+    framework: "TypeScript / Node.js",
+    database: "PostgreSQL / Supabase",
+  });
 
   // Modals & Popups
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
@@ -231,10 +243,17 @@ export default function ChatPage() {
     setTimeout(() => setCopiedShare(false), 2000);
   }
 
-  async function sendMessage() {
-    let text = input.trim();
+  async function sendMessage(overrideText?: string) {
+    let text = overrideText || input.trim();
     if (!text && attachments.length === 0) return;
     if (isStreaming) return;
+
+    // Trigger Clarification Modal if Agent mode is enabled and overrideText wasn't passed
+    if (isAgentMode && !overrideText) {
+      setPendingPrompt(text);
+      setShowClarifyModal(true);
+      return;
+    }
 
     if (attachments.length > 0) {
       const contextStr = attachments
@@ -248,6 +267,13 @@ export default function ChatPage() {
 
     if (currentPersona && currentPersona.prompt) {
       payloadMessages.push({ role: "system", content: currentPersona.prompt });
+    }
+
+    if (isAgentMode) {
+      payloadMessages.push({
+        role: "system",
+        content: `[Autonomous Agent Pipeline Active]: Specified preferences: Target Architecture: ${clarifyAnswers.target}, Framework: ${clarifyAnswers.framework}, DB: ${clarifyAnswers.database}. Break down execution into clear step-by-step modular sections.`,
+      });
     }
 
     if (isWebSearchEnabled) {
@@ -526,6 +552,20 @@ export default function ChatPage() {
               >
                 <Swords size={14} />
                 <span>Arena</span>
+              </button>
+
+              {/* Autonomous AI Agent Toggle */}
+              <button
+                onClick={() => setIsAgentMode(!isAgentMode)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs transition-colors ${
+                  isAgentMode
+                    ? "border-accent bg-accent text-ink font-medium"
+                    : "border-border bg-surface text-muted hover:text-text"
+                }`}
+                title="Toggle Autonomous AI Agent Mode with Clarification Questions"
+              >
+                <Bot size={14} />
+                <span>Agent</span>
               </button>
             </div>
 
@@ -834,6 +874,88 @@ export default function ChatPage() {
                   <p className="text-xs text-muted line-clamp-2">{tmpl.prompt}</p>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clarification Questions Modal */}
+      {showClarifyModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-display text-lg text-text flex items-center gap-2">
+                <HelpCircle size={18} className="text-accent" /> Agent Clarification Questions
+              </h3>
+              <button onClick={() => setShowClarifyModal(false)} className="text-muted hover:text-text">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted">
+              To provide the highest quality output, please clarify your architectural preferences:
+            </p>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-muted mb-1 font-medium">1. Target Architecture</label>
+                <select
+                  value={clarifyAnswers.target}
+                  onChange={(e) => setClarifyAnswers({ ...clarifyAnswers, target: e.target.value })}
+                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
+                >
+                  <option value="REST API">REST API Endpoint</option>
+                  <option value="Full-Stack App">Full-Stack Web App</option>
+                  <option value="Microservice">Backend Microservice</option>
+                  <option value="CLI Tool">Command-Line CLI Tool</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-muted mb-1 font-medium">2. Language / Framework</label>
+                <select
+                  value={clarifyAnswers.framework}
+                  onChange={(e) => setClarifyAnswers({ ...clarifyAnswers, framework: e.target.value })}
+                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
+                >
+                  <option value="TypeScript / Node.js">TypeScript / Node.js (Next.js & Fastify)</option>
+                  <option value="Python / FastAPI">Python / FastAPI</option>
+                  <option value="Go / Fiber">Go / Fiber</option>
+                  <option value="Rust / Axum">Rust / Axum</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-muted mb-1 font-medium">3. Persistence / Database</label>
+                <select
+                  value={clarifyAnswers.database}
+                  onChange={(e) => setClarifyAnswers({ ...clarifyAnswers, database: e.target.value })}
+                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
+                >
+                  <option value="PostgreSQL / Supabase">PostgreSQL / Supabase Prisma</option>
+                  <option value="MongoDB">MongoDB Mongoose</option>
+                  <option value="Redis Cache">Redis In-Memory Key-Value</option>
+                  <option value="SQLite">SQLite Local File</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                onClick={() => setShowClarifyModal(false)}
+                className="px-3 py-1.5 rounded border border-border text-xs text-muted hover:text-text"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowClarifyModal(false);
+                  sendMessage(pendingPrompt);
+                }}
+                className="px-4 py-1.5 rounded bg-accent text-ink text-xs font-semibold hover:opacity-90"
+              >
+                Proceed with Execution
+              </button>
             </div>
           </div>
         </div>

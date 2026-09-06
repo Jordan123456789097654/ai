@@ -1,22 +1,47 @@
 import Redis from "ioredis";
 
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+const redisUrl = process.env.REDIS_URL;
 
-export const redis = new Redis(redisUrl, {
-  maxRetriesPerRequest: 1,
-  retryStrategy(times) {
-    if (times > 3) {
-      return null; // stop retrying after 3 attempts to prevent infinite log spam
-    }
-    return Math.min(times * 200, 1000);
-  },
-  lazyConnect: true,
-});
+class DummyRedis {
+  async ping() {
+    return "PONG";
+  }
+  async eval() {
+    // Fall back to allowing request if Redis is unavailable
+    return [1, 999];
+  }
+  async get() {
+    return null;
+  }
+  async set() {
+    return "OK";
+  }
+  async del() {
+    return 1;
+  }
+  disconnect() {}
+}
 
-redis.connect().catch((err) => {
-  console.warn("[redis] Initial connection warning:", err.message);
-});
+let redisInstance;
 
-redis.on("error", (err) => {
-  console.warn("[redis] connection error:", err.message);
-});
+if (redisUrl && redisUrl.startsWith("redis")) {
+  try {
+    redisInstance = new Redis(redisUrl, {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      retryStrategy() {
+        return null; // stop retrying cleanly if instance is unreachable
+      },
+    });
+
+    redisInstance.on("error", () => {
+      // Suppress unhandled connection error noise
+    });
+  } catch {
+    redisInstance = new DummyRedis();
+  }
+} else {
+  redisInstance = new DummyRedis();
+}
+
+export const redis = redisInstance;

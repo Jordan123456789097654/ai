@@ -13,10 +13,10 @@ import CodeBlock from "../../components/CodeBlock";
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 const MODELS = [
+  { id: "kyro-flash-8b", name: "Kyro Flash (8B)", desc: "Ultra-fast response model" },
   { id: "kyro-ultra-70b", name: "Kyro Ultra (70B)", desc: "Deep reasoning & coding" },
-  { id: "kyro-flash-8b", name: "Kyro Flash (8B)", desc: "Ultra-fast response" },
-  { id: "kyro-mixtral-8x7b", name: "Kyro Mixtral (8x7B)", desc: "Expanded context" },
-  { id: "kyro-gemma-9b", name: "Kyro Gemma (9B)", desc: "Precise instruction" },
+  { id: "kyro-mixtral-8x7b", name: "Kyro Mixtral (8x7B)", desc: "Expanded context window" },
+  { id: "kyro-gemma-9b", name: "Kyro Gemma (9B)", desc: "Precise instruction model" },
 ];
 
 export default function ChatPage() {
@@ -94,7 +94,6 @@ export default function ChatPage() {
     if (!text && attachments.length === 0) return;
     if (isStreaming) return;
 
-    // Attach file contents to prompt context if uploaded
     if (attachments.length > 0) {
       const contextStr = attachments
         .map((a) => `\n--- File: ${a.name} ---\n${a.content}\n--- End File ---`)
@@ -117,21 +116,16 @@ export default function ChatPage() {
       } catch {}
     }
 
-    const token = await getSessionToken();
+    let token = await getSessionToken();
 
     try {
-      const res = await fetch(`${API_BASE}/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: nextMessages,
-          stream: true,
-        }),
-      });
+      let res = await makeChatRequest(token, selectedModel, nextMessages);
+
+      // If token expired/invalid (401), retry without token as a guest
+      if (res.status === 401 && token) {
+        console.warn("[chat] Token invalid, retrying request as guest...");
+        res = await makeChatRequest(null, selectedModel, nextMessages);
+      }
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -177,20 +171,33 @@ export default function ChatPage() {
     }
   }
 
+  async function makeChatRequest(authToken: string | null, modelName: string, chatMessages: ChatMessage[]) {
+    return fetch(`${API_BASE}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: chatMessages,
+        stream: true,
+      }),
+    });
+  }
+
   /** Export entire chat & generated code blocks as a ZIP archive */
   async function exportChatZip() {
     if (messages.length === 0) return;
 
     const zip = new JSZip();
 
-    // 1. Export conversation transcript as Markdown
     let mdContent = `# Chat Export — Kyro AI\n\n`;
     messages.forEach((m) => {
       mdContent += `### ${m.role.toUpperCase()}\n${m.content}\n\n---\n\n`;
     });
     zip.file("conversation.md", mdContent);
 
-    // 2. Extract code blocks and create individual files inside zip
     let codeIndex = 1;
     messages.forEach((m) => {
       if (m.role === "assistant") {
@@ -219,9 +226,8 @@ export default function ChatPage() {
       {signedIn && <ChatSidebar activeId={conversationId} onSelect={selectConversation} onNew={startNewChat} />}
 
       <div className="mx-auto max-w-4xl px-6 flex flex-col h-[calc(100vh-73px)] flex-1">
-        {/* Top bar with Model selector and Export ZIP button */}
+        {/* Top bar */}
         <div className="flex items-center justify-between py-3 border-b border-border">
-          {/* Custom Model Selector Dropdown */}
           <div className="relative">
             <button
               onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
@@ -326,9 +332,8 @@ export default function ChatPage() {
           <div ref={scrollRef} />
         </div>
 
-        {/* Input Bar & Attachment area */}
+        {/* Input Bar */}
         <div className="border-t border-border py-4 space-y-2">
-          {/* File attachments badge list */}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 text-xs">
               {attachments.map((att, idx) => (

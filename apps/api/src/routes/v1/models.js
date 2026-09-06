@@ -1,20 +1,20 @@
 import { getActiveConfig } from "../../services/systemConfigService.js";
 
 /**
- * Custom Model Aliases mapping to underlying verified Groq Cloud endpoints
+ * Custom Model Aliases mapping to active Groq Cloud endpoints
  */
 export const CUSTOM_MODELS = [
-  {
-    id: "kyro-ultra-70b",
-    name: "Kyro Ultra (70B)",
-    providerModel: "llama3-70b-8192",
-    description: "Most capable model for complex reasoning, code generation, and deep analysis.",
-  },
   {
     id: "kyro-flash-8b",
     name: "Kyro Flash (8B)",
     providerModel: "llama-3.1-8b-instant",
     description: "Ultra-fast response model suited for quick Q&A and lightweight tasks.",
+  },
+  {
+    id: "kyro-ultra-70b",
+    name: "Kyro Ultra (70B)",
+    providerModel: "llama-3.1-70b-versatile",
+    description: "Most capable model for complex reasoning, code generation, and deep analysis.",
   },
   {
     id: "kyro-mixtral-8x7b",

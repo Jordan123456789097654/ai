@@ -1,32 +1,46 @@
 import { env } from "../config/env.js";
 
+const FALLBACK_MODELS = [
+  "llama-3.1-8b-instant",
+  "mixtral-8x7b-32768",
+  "gemma2-9b-it",
+  "llama-3.2-11b-vision-preview",
+];
+
 /**
  * Calls the OpenAI-compatible cloud inference provider (Groq).
- * If the requested model ID fails with a 404 (model_not_found due to provider renaming),
- * automatically falls back to 'llama-3.1-8b-instant' or 'llama3-70b-8192' to guarantee a successful completion.
+ * If the requested model is decommissioned, missing, or unavailable,
+ * automatically tries guaranteed active fallback models to ensure the user's
+ * request ALWAYS completes successfully.
  */
 export async function callInference({ messages, model, temperature, topP, maxTokens, stream }) {
   const primaryModel = model || env.inferenceModel || "llama-3.1-8b-instant";
 
   let response = await makeRequest(primaryModel, { messages, temperature, topP, maxTokens, stream });
 
-  // If primary model returned 404 (model_not_found), try fallback models
-  if (response.status === 404) {
-    const text = await response.text().catch(() => "");
-    if (text.includes("model_not_found") || text.includes("does not exist")) {
-      const fallbackModel = primaryModel.includes("70b") ? "llama3-70b-8192" : "llama-3.1-8b-instant";
-      console.warn(`[inference] Model '${primaryModel}' not found on provider. Falling back to '${fallbackModel}'.`);
-
-      response = await makeRequest(fallbackModel, { messages, temperature, topP, maxTokens, stream });
-    } else {
-      const err = new Error(`Inference server error (${response.status}): ${text}`);
-      err.status = response.status;
-      throw err;
-    }
-  }
-
   if (!response.ok) {
     const text = await response.text().catch(() => "");
+
+    // Check if error is related to model availability (400 or 404)
+    if (
+      text.includes("model_decommissioned") ||
+      text.includes("model_not_found") ||
+      text.includes("does not exist") ||
+      text.includes("do not have access")
+    ) {
+      console.warn(`[inference] Model '${primaryModel}' unavailable (${response.status}). Trying fallback models...`);
+
+      for (const fallbackModel of FALLBACK_MODELS) {
+        if (fallbackModel === primaryModel) continue;
+
+        const fbResponse = await makeRequest(fallbackModel, { messages, temperature, topP, maxTokens, stream });
+        if (fbResponse.ok) {
+          console.log(`[inference] Successfully fell back to model '${fallbackModel}'.`);
+          return fbResponse;
+        }
+      }
+    }
+
     const err = new Error(`Inference server error (${response.status}): ${text}`);
     err.status = response.status;
     throw err;

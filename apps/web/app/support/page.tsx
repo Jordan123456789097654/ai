@@ -47,6 +47,37 @@ export default function SupportPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [emailInput, setEmailInput] = useState("user@example.com");
 
+  // Load chat history from localStorage on initial page render
+  useEffect(() => {
+    try {
+      const savedChat = localStorage.getItem("kyro_support_chat_history");
+      if (savedChat) {
+        const parsed = JSON.parse(savedChat);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setChatMessages(parsed);
+        }
+      }
+      const savedEmail = localStorage.getItem("kyro_support_customer_email");
+      if (savedEmail) {
+        setEmailInput(savedEmail);
+      }
+    } catch {}
+  }, []);
+
+  // Save chat history to localStorage whenever messages update
+  useEffect(() => {
+    try {
+      localStorage.setItem("kyro_support_chat_history", JSON.stringify(chatMessages));
+    } catch {}
+  }, [chatMessages]);
+
+  // Save email to localStorage whenever email updates
+  useEffect(() => {
+    try {
+      localStorage.setItem("kyro_support_customer_email", emailInput);
+    } catch {}
+  }, [emailInput]);
+
   async function handleSendAiChat(textToSend?: string) {
     const query = (textToSend || userInput).trim();
     if (!query || isTyping) return;
@@ -95,13 +126,17 @@ export default function SupportPage() {
   }
 
   function resetChat() {
-    setChatMessages([
+    const initial: ChatMessage[] = [
       {
         sender: "AI Agent",
         text: "Hello! I am Kyro AI Support Agent. Ask me anything about your account, API keys, models, rate limits, or billing. If I am unable to answer your inquiry, I will automatically create a real support ticket in our database and escalate it to an Admin in our Admin Panel.",
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       },
-    ]);
+    ];
+    setChatMessages(initial);
+    try {
+      localStorage.setItem("kyro_support_chat_history", JSON.stringify(initial));
+    } catch {}
   }
 
   const filteredFaqs = FAQS.filter(

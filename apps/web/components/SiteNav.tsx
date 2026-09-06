@@ -13,8 +13,6 @@ const PUBLIC_LINKS = [
   { href: "/voice", label: "Voice Studio" },
   { href: "/code-audit", label: "Code Security" },
   { href: "/tickets", label: "Tickets" },
-  { href: "/slides", label: "Slides Studio" },
-  { href: "/image-gen", label: "Image Studio" },
   { href: "/docs", label: "Docs" },
   { href: "/status", label: "Status" },
   { href: "/support", label: "Support" },

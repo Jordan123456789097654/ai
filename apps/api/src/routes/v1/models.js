@@ -1,37 +1,8 @@
-import { getActiveConfig } from "../../services/systemConfigService.js";
-
-/**
- * Custom Model Aliases mapping to active Groq Cloud endpoints
- */
-export const CUSTOM_MODELS = [
-  {
-    id: "kyro-flash-8b",
-    name: "Kyro Flash (8B)",
-    providerModel: "llama-3.1-8b-instant",
-    description: "Ultra-fast response model suited for quick Q&A and lightweight tasks.",
-  },
-  {
-    id: "kyro-ultra-70b",
-    name: "Kyro Ultra (70B)",
-    providerModel: "llama-3.1-70b-versatile",
-    description: "Most capable model for complex reasoning, code generation, and deep analysis.",
-  },
-  {
-    id: "kyro-mixtral-8x7b",
-    name: "Kyro Mixtral (8x7B)",
-    providerModel: "mixtral-8x7b-32768",
-    description: "High performance mixture-of-experts model with an expanded context window.",
-  },
-  {
-    id: "kyro-gemma-9b",
-    name: "Kyro Gemma (9B)",
-    providerModel: "gemma2-9b-it",
-    description: "Efficient open weights model fine-tuned for precise instructions.",
-  },
-];
+import { env } from "../../config/env.js";
 
 /**
  * GET /v1/models
+ * Dynamically queries the provider for available models and wraps them into Kyro aliases.
  */
 export default async function modelsRoute(fastify) {
   fastify.get(
@@ -43,30 +14,44 @@ export default async function modelsRoute(fastify) {
       },
     },
     async () => {
-      const config = await getActiveConfig();
-      const modelsList = CUSTOM_MODELS.map((m) => ({
-        id: m.id,
-        name: m.name,
-        description: m.description,
-        object: "model",
-        created: Math.floor(Date.now() / 1000),
-        owned_by: "kyro",
-      }));
-
-      if (!modelsList.some((m) => m.id === config.activeModel)) {
-        modelsList.unshift({
-          id: config.activeModel,
-          name: `Kyro Default (${config.activeModel})`,
-          description: "Default configured model",
-          object: "model",
-          created: Math.floor(Date.now() / 1000),
-          owned_by: "kyro",
+      try {
+        const res = await fetch(`${env.inferenceBaseUrl}/models`, {
+          headers: {
+            ...(env.inferenceApiKey ? { Authorization: `Bearer ${env.inferenceApiKey}` } : {}),
+          },
         });
+
+        if (res.ok) {
+          const providerData = await res.json();
+          if (Array.isArray(providerData?.data)) {
+            const liveModels = providerData.data.map((m) => ({
+              id: m.id,
+              name: `Kyro (${m.id})`,
+              description: `Active cloud model: ${m.id}`,
+              object: "model",
+              created: m.created || Math.floor(Date.now() / 1000),
+              owned_by: "kyro",
+            }));
+            return { object: "list", data: liveModels };
+          }
+        }
+      } catch (err) {
+        console.warn("[models] Failed to query provider models:", err.message);
       }
 
+      // Fallback model list
       return {
         object: "list",
-        data: modelsList,
+        data: [
+          {
+            id: "llama-3.3-70b-versatile",
+            name: "Kyro Ultra (70B)",
+            description: "High performance language model",
+            object: "model",
+            created: Math.floor(Date.now() / 1000),
+            owned_by: "kyro",
+          },
+        ],
       };
     }
   );

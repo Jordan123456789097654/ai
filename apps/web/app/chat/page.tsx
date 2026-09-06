@@ -25,6 +25,7 @@ import {
   HelpCircle,
   Github,
   Search,
+  Key,
 } from "lucide-react";
 import Link from "next/link";
 import JSZip from "jszip";
@@ -194,6 +195,28 @@ export default function ChatPage() {
     } finally {
       setTerminalLogs(capturedLogs);
       setIsRunningCode(false);
+    }
+  }
+
+  // Bring Your Own API Key (AI PRO+)
+  const [customApiKey, setCustomApiKey] = useState("");
+  const [showKeyModal, setShowKeyModal] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedKey = localStorage.getItem("kyro_custom_api_key");
+      if (savedKey) setCustomApiKey(savedKey);
+    }
+  }, []);
+
+  function saveCustomApiKey(key: string) {
+    setCustomApiKey(key);
+    if (typeof window !== "undefined") {
+      if (key.trim()) {
+        localStorage.setItem("kyro_custom_api_key", key.trim());
+      } else {
+        localStorage.removeItem("kyro_custom_api_key");
+      }
     }
   }
 
@@ -509,11 +532,12 @@ export default function ChatPage() {
 
   async function makeChatRequest(authToken: string | null, modelName: string, chatMessages: ChatMessage[]) {
     const baseUrl = getApiBaseUrl();
+    const effectiveToken = customApiKey.trim() || authToken;
     return fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...(effectiveToken ? { Authorization: `Bearer ${effectiveToken}` } : {}),
       },
       body: JSON.stringify({
         model: modelName,
@@ -713,6 +737,19 @@ export default function ChatPage() {
 
             {/* Right Action Icons */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowKeyModal(true)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-xs font-mono transition-colors ${
+                  customApiKey.trim()
+                    ? "border-success bg-success/10 text-success font-semibold"
+                    : "border-border text-muted hover:text-text hover:bg-surface"
+                }`}
+                title="Bring Your Own API Key (Unlock Kyro AI PRO+)"
+              >
+                <Key size={13} className={customApiKey.trim() ? "text-success" : "text-accent"} />
+                <span>{customApiKey.trim() ? "PRO+ Active" : "Pro+ Key"}</span>
+              </button>
+
               <button
                 onClick={() => setShowPromptLibrary(true)}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-border text-xs text-muted hover:text-text hover:bg-surface transition-colors"
@@ -1240,6 +1277,59 @@ export default function ChatPage() {
                   </p>
                 </div>
               ))}
+            </div>
+      {/* Bring Your Own API Key (PRO+) Modal */}
+      {showKeyModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface border border-border rounded-lg max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2 text-text font-medium text-sm">
+                <Key size={18} className="text-accent" />
+                <span>Bring Your Own API Key (Kyro PRO+)</span>
+              </div>
+              <button onClick={() => setShowKeyModal(false)} className="text-muted hover:text-text p-1">
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted leading-relaxed">
+              Enter your personal <code className="text-accent font-mono">Kyro API Key</code>, <code className="text-accent font-mono">Groq Key</code>, or custom key to unlock unlimited high-concurrency <strong>Kyro PRO+</strong> requests without global rate limit throttles.
+            </p>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-muted">Custom API Key</label>
+              <input
+                type="password"
+                value={customApiKey}
+                onChange={(e) => saveCustomApiKey(e.target.value)}
+                placeholder="kyro_sk_live_... or gsk_..."
+                className="w-full bg-surface-raised border border-border rounded p-2.5 text-xs outline-none focus:border-accent font-mono text-text"
+              />
+            </div>
+
+            {customApiKey.trim() && (
+              <div className="p-2.5 rounded bg-success/10 border border-success/30 text-success text-xs font-medium flex items-center gap-2">
+                <Check size={14} /> PRO+ Custom Key Active & Saved locally
+              </div>
+            )}
+
+            <div className="flex justify-between items-center pt-2">
+              {customApiKey.trim() ? (
+                <button
+                  onClick={() => saveCustomApiKey("")}
+                  className="text-xs text-danger hover:underline"
+                >
+                  Clear Key
+                </button>
+              ) : (
+                <span className="text-[11px] text-muted">No custom key set (Using standard Tier)</span>
+              )}
+              <button
+                onClick={() => setShowKeyModal(false)}
+                className="px-4 py-1.5 rounded bg-accent text-ink text-xs font-semibold hover:opacity-90"
+              >
+                Save & Close
+              </button>
             </div>
           </div>
         </div>

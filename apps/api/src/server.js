@@ -124,6 +124,14 @@ fastify.get("/health", async (_request, reply) => {
 fastify.get("/openapi.json", async () => fastify.swagger());
 
 // ── Start ─────────────────────────────────────────────────────────────────────
+// Auto-migrate missing columns on PostgreSQL database startup if needed
+try {
+  await prisma.$executeRawUnsafe(`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes TEXT DEFAULT 'completions';`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;`);
+} catch (e) {
+  fastify.log.warn(`Auto-migration note: ${e.message}`);
+}
+
 fastify.listen({ port: env.port, host: "0.0.0.0" }, (err, address) => {
   if (err) {
     fastify.log.error(err);

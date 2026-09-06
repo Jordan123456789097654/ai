@@ -276,6 +276,8 @@ export default function CodeBlock({
             </div>
           </div>
         </div>
+      )}
+
       {/* GitHub PR & Push Modal */}
       {showGithubModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">

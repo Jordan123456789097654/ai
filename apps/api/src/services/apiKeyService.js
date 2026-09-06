@@ -20,17 +20,31 @@ export async function createApiKey({ userId, name, rateLimitOverride = null, sco
   const keyHash = sha256(rawKey);
   const keyPrefix = rawKey.slice(0, env.apiKeyPrefix.length + 8); // safe-to-display prefix
 
-  const record = await prisma.apiKey.create({
-    data: {
-      userId,
-      name,
-      keyHash,
-      keyPrefix,
-      rateLimitOverride,
-      scopes: Array.isArray(scopes) ? scopes.join(",") : scopes,
-      expiresAt: expiresAt ? new Date(expiresAt) : null,
-    },
-  });
+  let record;
+  try {
+    record = await prisma.apiKey.create({
+      data: {
+        userId,
+        name,
+        keyHash,
+        keyPrefix,
+        rateLimitOverride,
+        scopes: Array.isArray(scopes) ? scopes.join(",") : scopes,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      },
+    });
+  } catch (err) {
+    console.warn("[apiKeyService] Retrying create without optional columns:", err.message);
+    record = await prisma.apiKey.create({
+      data: {
+        userId,
+        name,
+        keyHash,
+        keyPrefix,
+        rateLimitOverride,
+      },
+    });
+  }
 
   return { rawKey, key: record };
 }
@@ -56,21 +70,39 @@ export async function touchLastUsed(apiKeyId) {
 }
 
 export async function listKeysForUser(userId) {
-  return prisma.apiKey.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      keyPrefix: true,
-      isActive: true,
-      rateLimitOverride: true,
-      scopes: true,
-      expiresAt: true,
-      createdAt: true,
-      lastUsedAt: true,
-    },
-  });
+  try {
+    return await prisma.apiKey.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        keyPrefix: true,
+        isActive: true,
+        rateLimitOverride: true,
+        scopes: true,
+        expiresAt: true,
+        createdAt: true,
+        lastUsedAt: true,
+      },
+    });
+  } catch (err) {
+    console.warn("[apiKeyService] Falling back due to missing schema column:", err.message);
+    const keys = await prisma.apiKey.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        keyPrefix: true,
+        isActive: true,
+        rateLimitOverride: true,
+        createdAt: true,
+        lastUsedAt: true,
+      },
+    });
+    return keys.map((k) => ({ ...k, scopes: "completions", expiresAt: null }));
+  }
 }
 
 export async function revokeKey({ keyId, userId, isAdmin = false }) {

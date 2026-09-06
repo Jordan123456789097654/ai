@@ -3,7 +3,6 @@ import { enforceRateLimit } from "../../middleware/rateLimit.js";
 import { getActiveConfig } from "../../services/systemConfigService.js";
 import { callInference } from "../../services/inferenceClient.js";
 import { prisma } from "../../lib/prisma.js";
-import { CUSTOM_MODELS } from "./models.js";
 
 /**
  * POST /v1/chat/completions & GET /v1/chat/completions (info route)
@@ -53,12 +52,7 @@ export default async function chatCompletionsRoute(fastify) {
       const { messages, model, temperature, top_p: topP, max_tokens: maxTokens, stream } = request.body;
       const config = await getActiveConfig();
 
-      // Resolve custom Kyro model alias to underlying provider model
-      let targetModel = model || config.activeModel;
-      const matchedAlias = CUSTOM_MODELS.find((m) => m.id === targetModel);
-      if (matchedAlias) {
-        targetModel = matchedAlias.providerModel;
-      }
+      const targetModel = model || config.activeModel;
 
       // Prepend Kyro global system persona
       const finalMessages = [{ role: "system", content: config.globalSystemPrompt }, ...messages];

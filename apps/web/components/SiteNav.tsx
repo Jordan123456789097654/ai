@@ -13,8 +13,6 @@ const PUBLIC_LINKS = [
   { href: "/docs", label: "Docs" },
   { href: "/status", label: "Status" },
   { href: "/support", label: "Support" },
-  { href: "/terms", label: "Terms" },
-  { href: "/privacy", label: "Privacy" },
 ];
 
 // Requires a signed-in account.

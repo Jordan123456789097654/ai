@@ -23,6 +23,7 @@ import {
   Check,
   Bot,
   HelpCircle,
+  Github,
 } from "lucide-react";
 import Link from "next/link";
 import JSZip from "jszip";
@@ -743,6 +744,15 @@ export default function ChatPage() {
 
           {/* Input Bar */}
           <div className="border-t border-border py-4 space-y-2 relative">
+            {/* Real-time Token & Latency Meter */}
+            <div className="flex items-center justify-between text-[11px] text-muted font-mono px-1">
+              <span>Input: ~{Math.ceil((input.length || 0) / 4)} tokens</span>
+              <div className="flex items-center gap-3">
+                {arenaStatsA && <span>Speed: {(arenaStatsA.tokens / (arenaStatsA.latencyMs / 1000 || 1)).toFixed(1)} tok/s ({arenaStatsA.latencyMs}ms)</span>}
+                <span className="text-accent font-semibold">Cost: ~$0.0001</span>
+              </div>
+            </div>
+
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 text-xs">
                 {attachments.map((att, idx) => (
@@ -826,9 +836,30 @@ export default function ChatPage() {
                 </div>
               </div>
 
-              <button onClick={() => setIsCanvasOpen(false)} className="text-muted hover:text-text p-1 rounded">
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const gistPayload = JSON.stringify(
+                      {
+                        description: "Generated artifact snippet by Kyro AI",
+                        public: true,
+                        files: { [`snippet.${canvasLang}`]: { content: canvasCode } },
+                      },
+                      null,
+                      2
+                    );
+                    navigator.clipboard.writeText(gistPayload);
+                    alert("GitHub Gist payload copied to clipboard! You can paste this directly into the GitHub API or Gist editor.");
+                  }}
+                  className="flex items-center gap-1 text-xs text-muted hover:text-text border border-border px-2.5 py-1 rounded bg-surface transition-colors"
+                  title="Export Canvas snippet to GitHub Gist payload"
+                >
+                  <Github size={13} /> Gist
+                </button>
+                <button onClick={() => setIsCanvasOpen(false)} className="text-muted hover:text-text p-1 rounded">
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-auto p-4 bg-ink">

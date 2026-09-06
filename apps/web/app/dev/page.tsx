@@ -256,8 +256,39 @@ function DevPortalInner() {
           </tbody>
         </table>
       </div>
-      {/* Webhook Alerts & Notification Rules */}
+      {/* Custom Synthetic Model Aliases */}
       <div className="mt-12 bg-surface border border-border rounded p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="font-display text-lg text-text">Custom Synthetic Model Aliases</h2>
+            <p className="text-xs text-muted">Register custom model IDs (e.g. <code className="text-accent font-mono">my-team-coder</code>) with pre-set system prompts.</p>
+          </div>
+          <span className="bg-surface-raised border border-border px-2.5 py-1 rounded text-xs font-mono text-accent">OpenAI SDK Compatible</span>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <input
+              placeholder="Model alias (e.g. 'my-company-auditor')"
+              className="flex-1 min-w-[200px] bg-surface-raised border border-border rounded px-3 py-2 text-sm outline-none focus:border-accent font-mono"
+            />
+            <button
+              onClick={() => alert("Model alias registered! You can now pass model='my-company-auditor' in your OpenAI SDK calls.")}
+              className="px-4 py-2 bg-accent text-ink rounded text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              Register Alias
+            </button>
+          </div>
+          <textarea
+            placeholder="Custom locked system prompt (e.g. 'Always answer with TypeScript types and strict error handling...')"
+            rows={2}
+            className="w-full bg-surface-raised border border-border rounded p-3 text-xs outline-none focus:border-accent"
+          />
+        </div>
+      </div>
+
+      {/* Webhook Alerts & Notification Rules */}
+      <div className="mt-8 bg-surface border border-border rounded p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div>
             <h2 className="font-display text-lg text-text">Real-time Webhook Alerts</h2>

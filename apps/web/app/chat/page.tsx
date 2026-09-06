@@ -6,7 +6,7 @@ import { Send, Paperclip, Download, Archive, ChevronDown, Sparkles, X } from "lu
 import Link from "next/link";
 import JSZip from "jszip";
 import { supabase, getSessionToken } from "../../lib/supabaseClient";
-import { apiFetch, API_BASE } from "../../lib/api";
+import { apiFetch, getApiBaseUrl } from "../../lib/api";
 import ChatSidebar from "../../components/ChatSidebar";
 import CodeBlock from "../../components/CodeBlock";
 
@@ -172,7 +172,8 @@ export default function ChatPage() {
   }
 
   async function makeChatRequest(authToken: string | null, modelName: string, chatMessages: ChatMessage[]) {
-    return fetch(`${API_BASE}/v1/chat/completions`, {
+    const baseUrl = getApiBaseUrl();
+    return fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

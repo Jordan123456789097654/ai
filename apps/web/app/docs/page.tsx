@@ -239,8 +239,8 @@ export default function DocsPage() {
         </p>
         <div className="bg-surface border border-border rounded p-4 font-mono text-xs text-text space-y-1">
           <p className="text-muted">// Chunk response format</p>
-          <p>data: {"{"}"id":"chatcmpl-123","choices":[{"{"}"delta":{"{"}"content":"Hello"}"}"}]}{"}"}</p>
-          <p>data: {"{"}"id":"chatcmpl-123","choices":[{"{"}"delta":{"{"}"content":" world"}"}"}]}{"}"}</p>
+          <p>{'data: {"id":"chatcmpl-123","choices":[{"delta":{"content":"Hello"}}]}'}</p>
+          <p>{'data: {"id":"chatcmpl-123","choices":[{"delta":{"content":" world"}}]}'}</p>
           <p className="text-muted mt-2">// End of stream marker</p>
           <p className="text-accent">data: [DONE]</p>
         </div>

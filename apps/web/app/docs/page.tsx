@@ -325,6 +325,42 @@ export default function DocsPage() {
           </table>
         </div>
       </section>
+
+      {/* Hosted Discord & Slack Bot Setup Guide */}
+      <section className="space-y-4">
+        <h2 className="font-display text-xl">Hosted Discord & Slack Bot Setup Guide</h2>
+        <p className="text-sm text-muted">
+          Connect your custom Discord or Slack bots to Kyro AI cloud infrastructure in 2 minutes:
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div className="border border-border bg-surface rounded p-4 space-y-2">
+            <h3 className="font-bold text-accent font-mono text-sm">🤖 Discord Bot Webhook Setup</h3>
+            <p className="text-muted">1. Go to Discord Developer Portal ➔ Create App.</p>
+            <p className="text-muted">2. Set Interactions URL to: <code className="text-text font-mono">https://kyro-api-auou.onrender.com/webhooks/discord</code>.</p>
+            <p className="text-muted">3. Or enter your Bot Secret Token on the <a href="/dev" className="text-accent hover:underline">Developer Portal</a> to host with custom commands.</p>
+          </div>
+          <div className="border border-border bg-surface rounded p-4 space-y-2">
+            <h3 className="font-bold text-accent font-mono text-sm">💬 Slack Bot Webhook Setup</h3>
+            <p className="text-muted">1. Go to Slack API Portal ➔ Create App.</p>
+            <p className="text-muted">2. Set Event Subscriptions Request URL to: <code className="text-text font-mono">https://kyro-api-auou.onrender.com/webhooks/slack</code>.</p>
+            <p className="text-muted">3. Enable slash commands (<code className="text-text font-mono">/kyro</code>) and channel mentions (<code className="text-text font-mono">@Kyro</code>).</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Kyro CLI Executable Guide */}
+      <section className="space-y-3">
+        <h2 className="font-display text-xl">Kyro CLI Terminal Tool (<code className="text-accent font-mono">kyro-cli</code>)</h2>
+        <p className="text-sm text-muted">
+          Pipe log files, run quick terminal prompts, and refactor code directly from your terminal:
+        </p>
+        <div className="bg-surface border border-border rounded p-4 font-mono text-xs text-text space-y-2">
+          <p className="text-muted">// Direct terminal completion</p>
+          <p className="text-accent">npx kyro "Build a high-performance Express REST API server"</p>
+          <p className="text-muted mt-2">// Pipe log files to analyze errors</p>
+          <p className="text-accent">cat server.log | npx kyro "Explain error and provide bug fix"</p>
+        </div>
+      </section>
     </div>
   );
 }

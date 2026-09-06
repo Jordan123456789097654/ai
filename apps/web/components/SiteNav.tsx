@@ -10,11 +10,11 @@ import type { User } from "@supabase/supabase-js";
 const PUBLIC_LINKS = [
   { href: "/chat", label: "Chat" },
   { href: "/templates", label: "Templates" },
-  { href: "/workflows", label: "Workflows" },
-  { href: "/db", label: "DB Connect" },
-  { href: "/status", label: "Status" },
   { href: "/docs", label: "Docs" },
+  { href: "/status", label: "Status" },
   { href: "/support", label: "Support" },
+  { href: "/terms", label: "Terms" },
+  { href: "/privacy", label: "Privacy" },
 ];
 
 // Requires a signed-in account.

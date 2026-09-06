@@ -19,10 +19,7 @@ import authRoutes from "./routes/auth.js";
 const fastify = Fastify({ logger: true, trustProxy: true });
 
 // ── Security headers ──────────────────────────────────────────────────────────
-// Disable CSP so Swagger UI's inline scripts still work in dev.
-// In production you may want to tighten this further.
 await fastify.register(helmet, { contentSecurityPolicy: false });
-
 await fastify.register(cors, { origin: true });
 
 await fastify.register(swagger, {
@@ -30,13 +27,12 @@ await fastify.register(swagger, {
     info: {
       title: "Kyro API",
       description:
-        "OpenAI-compatible chat completions, backed by a self-hosted open-source model. " +
-        "Swap your OpenAI SDK's baseURL to this host and use a kyro_sk_live_... key — everything else stays the same.",
+        "OpenAI-compatible chat completions API gateway backed by cloud LLM compute.",
       version: "1.0.0",
     },
     servers: [{ url: "http://localhost:4000", description: "Local" }],
     tags: [
-      { name: "auth", description: "Public sign-up / sign-in (sends its own emails via Resend)" },
+      { name: "auth", description: "Public sign-up / sign-in" },
       { name: "chat", description: "OpenAI-compatible public API" },
       { name: "developer-portal", description: "API key management (requires a Kyro account session)" },
       { name: "admin", description: "Admin control panel (requires the admin role)" },
@@ -55,11 +51,18 @@ await fastify.register(swaggerUi, { routePrefix: "/docs" });
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 
+// Root probes for load balancers & Render health checks
+fastify.route({
+  method: ["GET", "HEAD"],
+  url: "/",
+  handler: async () => ({ status: "ok", service: "kyro-api" }),
+});
+
 // Public, OpenAI-compatible surface
 await fastify.register(chatCompletionsRoute);
 await fastify.register(modelsRoute);
 
-// Public auth surface — signup / magic-link (sends its own emails)
+// Public auth surface — signup / magic-link
 await fastify.register(authRoutes);
 
 // First-party, session-authenticated surfaces
@@ -68,8 +71,6 @@ await fastify.register(adminRoutes);
 await fastify.register(conversationsRoutes);
 
 // ── Health check ─────────────────────────────────────────────────────────────
-// Pings Postgres and Redis so Render (and any load balancer) can detect a
-// degraded service rather than just seeing a running process.
 fastify.get("/health", async (_request, reply) => {
   const [dbResult, redisResult] = await Promise.allSettled([
     prisma.$queryRaw`SELECT 1`,
@@ -78,7 +79,7 @@ fastify.get("/health", async (_request, reply) => {
 
   const db = dbResult.status === "fulfilled" ? "ok" : "down";
   const cache = redisResult.status === "fulfilled" ? "ok" : "down";
-  const healthy = db === "ok" && cache === "ok";
+  const healthy = db === "ok"; // Postgres is required; Redis cache degradation soft-fails gracefully
 
   return reply.code(healthy ? 200 : 503).send({
     status: healthy ? "ok" : "degraded",
@@ -100,12 +101,10 @@ fastify.listen({ port: env.port, host: "0.0.0.0" }, (err, address) => {
 });
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
-// Drain in-flight requests before exiting so Render's rolling deploys don't
-// drop connections mid-stream.
 async function shutdown(signal) {
   fastify.log.info(`${signal} received — shutting down gracefully`);
   try {
-    await fastify.close();          // stops accepting new connections, waits for in-flight
+    await fastify.close();
     await prisma.$disconnect();
     redis.disconnect();
     fastify.log.info("Clean shutdown complete");

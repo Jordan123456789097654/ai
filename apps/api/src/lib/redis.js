@@ -1,9 +1,22 @@
 import Redis from "ioredis";
 
-export const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379", {
-  maxRetriesPerRequest: 3,
+const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+
+export const redis = new Redis(redisUrl, {
+  maxRetriesPerRequest: 1,
+  retryStrategy(times) {
+    if (times > 3) {
+      return null; // stop retrying after 3 attempts to prevent infinite log spam
+    }
+    return Math.min(times * 200, 1000);
+  },
+  lazyConnect: true,
+});
+
+redis.connect().catch((err) => {
+  console.warn("[redis] Initial connection warning:", err.message);
 });
 
 redis.on("error", (err) => {
-  console.error("[redis] connection error:", err.message);
+  console.warn("[redis] connection error:", err.message);
 });

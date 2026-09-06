@@ -1,13 +1,5 @@
 # Render Blueprint — provisions the whole Kyro stack in one "New > Blueprint" step.
 # Docs: https://render.com/docs/blueprint-spec
-#
-# After deploying:
-#   1. In Render dashboard → kyro-api → Environment, fill in every `sync: false` var.
-#      See apps/api/.env.production.example for the full list with instructions.
-#   2. In Render dashboard → kyro-web → Environment, fill in the NEXT_PUBLIC_* vars.
-#      NOTE: NEXT_PUBLIC_* are baked into the JS bundle at build time — a new deploy
-#      is required whenever you change them.
-#   3. Prisma migrations run automatically before each deploy (preDeployCommand).
 
 services:
   - type: redis
@@ -19,12 +11,10 @@ services:
   - type: web
     name: kyro-api
     runtime: docker
-    # Build from repo root so the Dockerfile can COPY prisma/ schema
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
     plan: starter
     healthCheckPath: /health
-    # Runs migrations against the DB before the new version goes live
     preDeployCommand: "npx prisma migrate deploy --schema=./prisma/schema.prisma"
     envVars:
       - key: REDIS_URL
@@ -44,28 +34,23 @@ services:
         value: 120
       - key: RATE_LIMIT_ENTERPRISE
         value: 1000
+      - key: INFERENCE_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: INFERENCE_MODEL
+        value: llama-3.3-70b-versatile
       # ── Set these manually in the Render dashboard ──────────────────────────
       - key: DATABASE_URL
-        sync: false   # Supabase Transaction pooler, port 6543 — used by the app at runtime
-                      # postgresql://postgres.xxxx:<pw>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true
-      - key: DIRECT_URL
-        sync: false   # Supabase Session pooler, port 5432 — used ONLY for prisma migrate deploy
-                      # (transaction-mode pooling doesn't support the advisory locks migrations need)
-                      # postgresql://postgres.xxxx:<pw>@aws-0-<region>.pooler.supabase.com:5432/postgres
+        sync: false
       - key: SUPABASE_URL
-        sync: false   # https://swzdndkvszotjausxdfk.supabase.co
+        sync: false
       - key: SUPABASE_ANON_KEY
-        sync: false   # Project Settings → API → anon public
+        sync: false
       - key: SUPABASE_JWT_SECRET
-        sync: false   # Project Settings → API → JWT Secret
+        sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false   # Project Settings → API → service_role secret
-      - key: INFERENCE_BASE_URL
-        sync: false   # e.g. http://your-gpu-host:8000/v1
-      - key: INFERENCE_MODEL
-        sync: false   # e.g. mistralai/Mistral-7B-Instruct-v0.3
+        sync: false
       - key: INFERENCE_API_KEY
-        sync: false   # leave blank for self-hosted with no auth
+        sync: false # Set your Groq API key here
 
   # ── Next.js Web Frontend ─────────────────────────────────────────────────────
   - type: web
@@ -76,14 +61,14 @@ services:
     plan: starter
     healthCheckPath: /
     envVars:
-      # Wired automatically from the API service
       - key: NEXT_PUBLIC_API_BASE_URL
         fromService:
           name: kyro-api
           type: web
-          property: host
-      # ── Set manually in the Render dashboard ────────────────────────────────
+          property: url
       - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false   # https://swzdndkvszotjausxdfk.supabase.co
+        sync: false
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
-        sync: false   # Project Settings → API → anon public
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false

@@ -4,9 +4,19 @@ import { env } from "../config/env.js";
 let cachedProviderModels = null;
 let lastModelFetchTime = 0;
 
+const PREFERRED_MODEL_KEYWORDS = [
+  "llama-3.3",
+  "llama-3.1",
+  "llama-3.2",
+  "llama3",
+  "mixtral",
+  "gemma",
+  "qwen",
+];
+
 /**
  * Dynamically queries the upstream OpenAI-compatible provider (Groq) for
- * its currently active, non-decommissioned model list.
+ * its currently active text generation model list, prioritizing standard LLMs.
  */
 async function fetchAvailableModels() {
   const now = Date.now();
@@ -24,9 +34,29 @@ async function fetchAvailableModels() {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.data)) {
-        cachedProviderModels = data.data.map((m) => m.id);
+        const allIds = data.data.map((m) => m.id);
+        
+        // Filter out non-text (audio/whisper/safeguard) models
+        const textModels = allIds.filter(
+          (id) =>
+            !id.toLowerCase().includes("whisper") &&
+            !id.toLowerCase().includes("safeguard") &&
+            !id.toLowerCase().includes("orpheus") &&
+            !id.toLowerCase().includes("guard")
+        );
+
+        // Sort by preferred chat LLM keywords
+        textModels.sort((a, b) => {
+          const scoreA = PREFERRED_MODEL_KEYWORDS.findIndex((k) => a.toLowerCase().includes(k));
+          const scoreB = PREFERRED_MODEL_KEYWORDS.findIndex((k) => b.toLowerCase().includes(k));
+          const aVal = scoreA === -1 ? 99 : scoreA;
+          const bVal = scoreB === -1 ? 99 : scoreB;
+          return aVal - bVal;
+        });
+
+        cachedProviderModels = textModels.length > 0 ? textModels : allIds;
         lastModelFetchTime = now;
-        console.log("[inference] Live models available on provider:", cachedProviderModels);
+        console.log("[inference] Prioritized live chat models on provider:", cachedProviderModels);
         return cachedProviderModels;
       }
     }

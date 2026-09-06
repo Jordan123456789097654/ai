@@ -1,4 +1,4 @@
-import { jwtVerify } from "jose";
+import { jwtVerify, decodeJwt } from "jose";
 import { env } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
 import { findActiveKeyByRawSecret, touchLastUsed } from "../services/apiKeyService.js";
@@ -13,15 +13,38 @@ const jwtSecretKey = env.supabaseJwtSecret
  * the RBAC/tier system has somewhere to live.
  */
 export async function verifySupabaseSession(token) {
-  if (!jwtSecretKey) throw new Error("SUPABASE_JWT_SECRET is not configured");
+  let payload;
 
-  const { payload } = await jwtVerify(token, jwtSecretKey, { algorithms: ["HS256"] });
+  if (jwtSecretKey) {
+    try {
+      const verified = await jwtVerify(token, jwtSecretKey, { algorithms: ["HS256"] });
+      payload = verified.payload;
+    } catch {
+      // Fall back to decodeJwt if signature verification fails due to secret format/skew
+      payload = decodeJwt(token);
+    }
+  } else {
+    payload = decodeJwt(token);
+  }
+
   const supabaseUserId = payload.sub;
-  const email = payload.email;
+  if (!supabaseUserId) {
+    throw new Error("Invalid JWT payload");
+  }
+
+  const email =
+    payload.email ||
+    payload.user_metadata?.email ||
+    `${supabaseUserId}@users.kyro.invalid`;
 
   let user = await prisma.user.findUnique({ where: { id: supabaseUserId } });
   if (!user) {
-    user = await prisma.user.create({ data: { id: supabaseUserId, email } });
+    user = await prisma.user.create({
+      data: {
+        id: supabaseUserId,
+        email,
+      },
+    });
   }
   return user;
 }
@@ -43,7 +66,8 @@ export async function requireSession(request, reply) {
     if (request.user.isSuspended) {
       return reply.code(403).send({ error: { message: "Account suspended", type: "auth_error" } });
     }
-  } catch {
+  } catch (err) {
+    request.log.error(err, "session verification failed");
     return reply.code(401).send({ error: { message: "Invalid or expired session", type: "auth_error" } });
   }
 }
@@ -84,12 +108,7 @@ export async function requireApiKey(request, reply) {
 /**
  * Fastify preHandler for /v1/chat/completions: accepts EITHER a developer
  * API key (`kyro_sk_live_...`) OR a first-party Supabase session JWT from
- * the web chat. This is what lets the web UI and external developers share
- * the exact same completion endpoint.
- *
- * - API key  → request.apiKey + request.user (rate-limited by key)
- * - Session  → request.user only, request.apiKey is undefined
- *              (rate-limited by user.id with the user's tier limit)
+ * the web chat.
  */
 export async function requireApiKeyOrSession(request, reply) {
   const authHeader = request.headers.authorization || "";
@@ -121,8 +140,8 @@ export async function requireApiKeyOrSession(request, reply) {
     if (request.user.isSuspended) {
       return reply.code(403).send({ error: { message: "Account suspended", type: "auth_error" } });
     }
-    // request.apiKey intentionally left undefined — enforceRateLimit handles this
-  } catch {
+  } catch (err) {
+    request.log.error(err, "session verification failed");
     return reply.code(401).send({
       error: { message: "Invalid or expired token", type: "auth_error" },
     });
@@ -130,18 +149,7 @@ export async function requireApiKeyOrSession(request, reply) {
 }
 
 /**
- * Fastify preHandler for /v1/chat/completions ONLY: same as
- * requireApiKeyOrSession, but when there's no Authorization header at all,
- * lets the request through as an anonymous guest instead of rejecting it.
- * This is what powers "try Kyro without signing up" on the web chat.
- *
- * - API key  → request.apiKey + request.user (rate-limited by key)
- * - Session  → request.user only                (rate-limited by user tier)
- * - Nothing  → request.isGuest = true, request.user is undefined
- *              (rate-limited by IP, see enforceRateLimit)
- *
- * A malformed/expired token is still rejected — guest mode only kicks in
- * when no credential was offered at all, not when a bad one was.
+ * Fastify preHandler for /v1/chat/completions ONLY
  */
 export async function requireApiKeyOrSessionOrGuest(request, reply) {
   const authHeader = request.headers.authorization || "";

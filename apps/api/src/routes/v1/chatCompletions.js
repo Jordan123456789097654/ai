@@ -3,19 +3,13 @@ import { enforceRateLimit } from "../../middleware/rateLimit.js";
 import { getActiveConfig } from "../../services/systemConfigService.js";
 import { callInference } from "../../services/inferenceClient.js";
 import { prisma } from "../../lib/prisma.js";
+import { CUSTOM_MODELS } from "./models.js";
 
 /**
  * POST /v1/chat/completions
  *
- * OpenAI-compatible endpoint. Accepts a standard chat-completions payload,
- * prepends Kyro's live system prompt (fetched from the Redis-cached active
- * config, set by the Admin Panel), and proxies to the self-hosted inference
- * engine — streaming tokens back over SSE when `stream: true`.
- *
- * Auth: accepts a developer API key (kyro_sk_live_...), a first-party
- * Supabase session JWT from the web chat UI, OR nothing at all — anonymous
- * callers are let through as guests, rate-limited by IP, so people can try
- * Kyro from the web chat without creating an account first.
+ * OpenAI-compatible endpoint supporting custom Kyro model aliases,
+ * streaming, and prompt/RAG context injection.
  */
 export default async function chatCompletionsRoute(fastify) {
   fastify.post(
@@ -23,13 +17,13 @@ export default async function chatCompletionsRoute(fastify) {
     {
       preHandler: [requireApiKeyOrSessionOrGuest, enforceRateLimit],
       schema: {
-        description: "Create a chat completion. Drop-in compatible with the OpenAI SDK — just change baseURL and apiKey.",
+        description: "Create a chat completion supporting custom Kyro models and RAG context attachments.",
         tags: ["chat"],
         body: {
           type: "object",
           required: ["messages"],
           properties: {
-            model: { type: "string", description: "Ignored if omitted; defaults to Kyro's configured active model." },
+            model: { type: "string" },
             messages: {
               type: "array",
               items: {
@@ -54,12 +48,18 @@ export default async function chatCompletionsRoute(fastify) {
       const { messages, model, temperature, top_p: topP, max_tokens: maxTokens, stream } = request.body;
       const config = await getActiveConfig();
 
-      // Kyro always speaks as Kyro: the admin-configured system prompt is
-      // prepended, ahead of anything the caller supplied.
+      // Resolve custom Kyro model alias to underlying provider model
+      let targetModel = model || config.activeModel;
+      const matchedAlias = CUSTOM_MODELS.find((m) => m.id === targetModel);
+      if (matchedAlias) {
+        targetModel = matchedAlias.providerModel;
+      }
+
+      // Prepend Kyro global system persona
       const finalMessages = [{ role: "system", content: config.globalSystemPrompt }, ...messages];
 
       const effective = {
-        model: model || config.activeModel,
+        model: targetModel,
         temperature: temperature ?? config.defaultTemperature,
         topP: topP ?? config.defaultTopP,
         maxTokens: maxTokens ?? config.defaultMaxTokens,
@@ -81,7 +81,6 @@ export default async function chatCompletionsRoute(fastify) {
 
       if (!stream) {
         const json = await upstream.json();
-        // Only log when using an API key — session-based usage has no key to associate with
         if (request.apiKey) {
           logUsage({
             apiKeyId: request.apiKey.id,
@@ -95,7 +94,7 @@ export default async function chatCompletionsRoute(fastify) {
         return reply.send(json);
       }
 
-      // SSE passthrough: forward vLLM's `data: {...}` chunks verbatim.
+      // SSE passthrough
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -108,7 +107,7 @@ export default async function chatCompletionsRoute(fastify) {
       try {
         for await (const chunk of upstream.body) {
           const text = decoder.decode(chunk, { stream: true });
-          completionTokenCount += (text.match(/"content":/g) || []).length; // coarse estimate
+          completionTokenCount += (text.match(/"content":/g) || []).length;
           reply.raw.write(text);
         }
       } finally {
@@ -130,7 +129,7 @@ export default async function chatCompletionsRoute(fastify) {
 
 function estimateTokens(messages) {
   const chars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-  return Math.ceil(chars / 4); // rough fallback when the upstream doesn't report usage on streamed chunks
+  return Math.ceil(chars / 4);
 }
 
 function logUsage(entry) {

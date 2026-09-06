@@ -14,6 +14,7 @@ export default function CodeBlock({
   language?: string;
   filename?: string;
 }) {
+  const [copied, setCopied] = useState(false);
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [gitDiffText, setGitDiffText] = useState("");
   const [diffCopied, setDiffCopied] = useState(false);
@@ -174,6 +175,8 @@ export default function CodeBlock({
             />
           </div>
         </div>
+      )}
+
       {/* Git Diff Patch Modal */}
       {showDiffModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">

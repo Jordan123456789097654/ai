@@ -470,6 +470,34 @@ export default function ChatPage() {
     });
   }
 
+  async function exportSingleMessageZip(content: string) {
+    const zip = new JSZip();
+    let codeIndex = 1;
+    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+    let match;
+    let fileCount = 0;
+
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      const lang = match[1] || "txt";
+      const code = match[2];
+      zip.file(`system_project/file_${codeIndex}.${lang}`, code);
+      codeIndex++;
+      fileCount++;
+    }
+
+    if (fileCount === 0) {
+      zip.file("system_project/codebase.md", content);
+    }
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `kyro_full_system_${Date.now()}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function exportChatZip() {
     if (messages.length === 0) return;
 
@@ -726,14 +754,25 @@ export default function ChatPage() {
                     </ReactMarkdown>
 
                     {m.role === "assistant" && m.content && (
-                      <button
-                        onClick={() => speakText(i, m.content)}
-                        className="mt-2 text-xs text-muted hover:text-accent flex items-center gap-1 transition-colors"
-                        title="Read aloud"
-                      >
-                        {speakingIdx === i ? <VolumeX size={13} className="text-accent animate-pulse" /> : <Volume2 size={13} />}
-                        <span>{speakingIdx === i ? "Stop" : "Listen"}</span>
-                      </button>
+                      <div className="mt-2.5 flex items-center gap-3 border-t border-border/40 pt-2 text-xs">
+                        <button
+                          onClick={() => speakText(i, m.content)}
+                          className="text-muted hover:text-accent flex items-center gap-1 transition-colors"
+                          title="Read aloud"
+                        >
+                          {speakingIdx === i ? <VolumeX size={13} className="text-accent animate-pulse" /> : <Volume2 size={13} />}
+                          <span>{speakingIdx === i ? "Stop" : "Listen"}</span>
+                        </button>
+
+                        <button
+                          onClick={() => exportSingleMessageZip(m.content)}
+                          className="text-accent hover:underline flex items-center gap-1 font-medium transition-colors ml-auto"
+                          title="Download all generated files as a full system ZIP project"
+                        >
+                          <Archive size={13} />
+                          <span>Download Full System (.ZIP)</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

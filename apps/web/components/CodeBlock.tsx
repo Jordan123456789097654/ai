@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Download, Eye, Maximize2, X, Code2, ShieldAlert, GitCommit } from "lucide-react";
+import { Copy, Check, Download, Eye, Maximize2, X, Code2, ShieldAlert, GitCommit, Github } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -30,6 +30,64 @@ export default function CodeBlock({
     navigator.clipboard.writeText(gitDiffText);
     setDiffCopied(true);
     setTimeout(() => setDiffCopied(false), 2000);
+  }
+
+  // GitHub PR / Commit Modal State
+  const [showGithubModal, setShowGithubModal] = useState(false);
+  const [ghToken, setGhToken] = useState("");
+  const [ghRepo, setGhRepo] = useState("");
+  const [ghFilePath, setGhFilePath] = useState(filename || `src/snippet.${getExtension(language)}`);
+  const [ghStatus, setGhStatus] = useState<string | null>(null);
+  const [ghPrUrl, setGhPrUrl] = useState<string | null>(null);
+  const [isPushingGh, setIsPushingGh] = useState(false);
+
+  async function handlePushToGitHub() {
+    if (!ghToken.trim() || !ghRepo.trim()) {
+      alert("Please provide a GitHub Access Token and Repository name.");
+      return;
+    }
+    setIsPushingGh(true);
+    setGhStatus("Connecting to GitHub API...");
+    setGhPrUrl(null);
+
+    try {
+      const userRes = await fetch("https://api.github.com/user", {
+        headers: { Authorization: `token ${ghToken.trim()}` },
+      });
+      if (!userRes.ok) throw new Error("Invalid GitHub Access Token");
+      const user = await userRes.json();
+      const owner = user.login;
+      const fullRepo = ghRepo.includes("/") ? ghRepo : `${owner}/${ghRepo}`;
+
+      const contentB64 = btoa(unescape(encodeURIComponent(code)));
+      setGhStatus(`Pushing ${ghFilePath} to ${fullRepo}...`);
+
+      const commitRes = await fetch(`https://api.github.com/repos/${fullRepo}/contents/${ghFilePath}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `token ${ghToken.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: `feat(kyro): add generated ${filename || 'code snippet'}`,
+          content: contentB64,
+        }),
+      });
+
+      if (!commitRes.ok) {
+        const errData = await commitRes.json();
+        throw new Error(errData.message || "Failed to commit file to GitHub");
+      }
+
+      const commitData = await commitRes.json();
+      const commitUrl = commitData.content?.html_url || `https://github.com/${fullRepo}`;
+      setGhPrUrl(commitUrl);
+      setGhStatus("Successfully committed file to GitHub!");
+    } catch (err: any) {
+      setGhStatus(`GitHub Error: ${err.message}`);
+    } finally {
+      setIsPushingGh(false);
+    }
   }
   const [activeTab, setActiveTab] = useState<"code" | "preview">("code");
   const [isFullScreenOpen, setIsFullScreenOpen] = useState(false);
@@ -108,6 +166,14 @@ export default function CodeBlock({
             title="Generate Git Diff Patch"
           >
             <GitCommit size={13} className="text-accent" /> Git Patch
+          </button>
+
+          <button
+            onClick={() => setShowGithubModal(true)}
+            className="flex items-center gap-1 hover:text-text px-2 py-1 rounded hover:bg-surface-raised transition-colors text-xs"
+            title="Commit & Push directly to GitHub"
+          >
+            <Github size={13} className="text-accent" /> GitHub PR
           </button>
 
           <button
@@ -206,6 +272,90 @@ export default function CodeBlock({
               >
                 {diffCopied ? <Check size={13} /> : <Copy size={13} />}
                 {diffCopied ? "Diff Copied!" : "Copy Git Patch"}
+              </button>
+            </div>
+          </div>
+        </div>
+      {/* GitHub PR & Push Modal */}
+      {showGithubModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-surface border border-border rounded-lg p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2 text-text font-medium text-sm">
+                <Github size={18} className="text-accent" />
+                <span>One-Click Push to GitHub</span>
+              </div>
+              <button onClick={() => setShowGithubModal(false)} className="text-muted hover:text-text p-1">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-muted mb-1 font-medium">GitHub Personal Access Token</label>
+                <input
+                  type="password"
+                  value={ghToken}
+                  onChange={(e) => setGhToken(e.target.value)}
+                  placeholder="ghp_..."
+                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-muted mb-1 font-medium">Target Repository Name</label>
+                <input
+                  type="text"
+                  value={ghRepo}
+                  onChange={(e) => setGhRepo(e.target.value)}
+                  placeholder="username/repository-name"
+                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-muted mb-1 font-medium">File Path in Repository</label>
+                <input
+                  type="text"
+                  value={ghFilePath}
+                  onChange={(e) => setGhFilePath(e.target.value)}
+                  placeholder="src/main.ts"
+                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent font-mono"
+                />
+              </div>
+
+              {ghStatus && (
+                <div className="p-2.5 rounded bg-surface-raised border border-border font-mono text-[11px] text-accent">
+                  {ghStatus}
+                </div>
+              )}
+
+              {ghPrUrl && (
+                <a
+                  href={ghPrUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-center py-2 px-3 bg-success/10 border border-success/40 text-success rounded font-semibold text-xs hover:underline"
+                >
+                  View Commit on GitHub ↗
+                </a>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <button
+                onClick={() => setShowGithubModal(false)}
+                className="px-3 py-1.5 rounded border border-border text-xs text-muted hover:text-text"
+              >
+                Close
+              </button>
+              <button
+                onClick={handlePushToGitHub}
+                disabled={isPushingGh}
+                className="px-4 py-1.5 rounded bg-accent text-ink text-xs font-semibold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <Github size={13} />
+                {isPushingGh ? "Pushing..." : "Commit & Push"}
               </button>
             </div>
           </div>

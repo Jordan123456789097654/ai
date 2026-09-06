@@ -10,6 +10,7 @@ import type { User } from "@supabase/supabase-js";
 const PUBLIC_LINKS = [
   { href: "/chat", label: "Chat" },
   { href: "/docs", label: "Docs" },
+  { href: "/support", label: "Support" },
 ];
 
 // Requires a signed-in account.

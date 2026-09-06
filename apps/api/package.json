@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "kyro": "./bin/kyro.js"
+  },
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",

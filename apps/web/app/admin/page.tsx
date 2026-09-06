@@ -241,6 +241,7 @@ function AdminPageInner() {
                 </tr>
               ))}
             </tbody>
+          </table>
         </div>
       </section>
 

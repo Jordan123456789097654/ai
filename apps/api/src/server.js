@@ -9,12 +9,15 @@ import { redis } from "./lib/redis.js";
 
 import chatCompletionsRoute from "./routes/v1/chatCompletions.js";
 import modelsRoute from "./routes/v1/models.js";
+import imageGenerationsRoute from "./routes/v1/imageGenerations.js";
 import keysRoutes from "./routes/keys.js";
 import adminRoutes from "./routes/admin.js";
 import conversationsRoutes from "./routes/conversations.js";
 import authRoutes from "./routes/auth.js";
 import discordRoute from "./routes/discord.js";
 import slackRoute from "./routes/slack.js";
+import ticketsRoute from "./routes/tickets.js";
+import slidesRoute from "./routes/slides.js";
 
 const fastify = Fastify({ logger: true, trustProxy: true });
 
@@ -96,6 +99,7 @@ fastify.route({
 // Public, OpenAI-compatible surface
 await fastify.register(chatCompletionsRoute);
 await fastify.register(modelsRoute);
+await fastify.register(imageGenerationsRoute);
 
 // Public auth surface — signup / magic-link
 await fastify.register(authRoutes);
@@ -106,6 +110,8 @@ await fastify.register(adminRoutes);
 await fastify.register(conversationsRoutes);
 await fastify.register(discordRoute);
 await fastify.register(slackRoute);
+await fastify.register(ticketsRoute);
+await fastify.register(slidesRoute);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 fastify.get("/health", async (_request, reply) => {

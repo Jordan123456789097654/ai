@@ -26,6 +26,7 @@ import {
   Github,
   Search,
   Key,
+  Brain,
 } from "lucide-react";
 import Link from "next/link";
 import JSZip from "jszip";
@@ -91,6 +92,19 @@ export default function ChatPage() {
 
   // Autonomous Agent & Clarification Modal State
   const [isAgentMode, setIsAgentMode] = useState(false);
+  const [showThinkingProcess, setShowThinkingProcess] = useState(true);
+
+  function parseMessageContent(content: string) {
+    if (!content) return { thinking: null, response: "" };
+    const thinkMatch = content.match(/<think>([\s\S]*?)(?:<\/think>|$)/i);
+    if (thinkMatch) {
+      const thinking = thinkMatch[1].trim();
+      const response = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/i, "").trim();
+      return { thinking, response };
+    }
+    return { thinking: null, response: content };
+  }
+
   const [showClarifyModal, setShowClarifyModal] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState("");
   const [clarifyAnswers, setClarifyAnswers] = useState({
@@ -733,6 +747,20 @@ export default function ChatPage() {
                 <Bot size={14} />
                 <span>Agent</span>
               </button>
+
+              {/* AI Thinking Process / Chain-of-Thought Toggle */}
+              <button
+                onClick={() => setShowThinkingProcess(!showThinkingProcess)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs transition-colors ${
+                  showThinkingProcess
+                    ? "border-accent bg-accent/10 text-accent font-medium"
+                    : "border-border bg-surface text-muted hover:text-text"
+                }`}
+                title="Toggle Chain-of-Thought AI Thinking Process Visibility"
+              >
+                <Brain size={14} className={showThinkingProcess ? "animate-pulse text-accent" : ""} />
+                <span>Thinking</span>
+              </button>
             </div>
 
             {/* Right Action Icons */}
@@ -810,38 +838,58 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {messages.map((m, i) => (
-                <div key={i} className={m.role === "user" ? "text-right" : ""}>
-                  <div
-                    className={`inline-block max-w-[90%] rounded-lg px-4 py-3 text-left relative group ${
-                      m.role === "user" ? "bg-surface-raised text-text" : "bg-surface border border-border"
-                    }`}
-                  >
-                    <ReactMarkdown
-                      components={{
-                        code({ node, inline, className, children, ...props }: any) {
-                          const match = /language-(\w+)/.exec(className || "");
-                          const codeStr = String(children).replace(/\n$/, "");
-                          return !inline && match ? (
-                            <div className="relative group/code my-2">
-                              <CodeBlock code={codeStr} language={match[1]} />
-                              <button
-                                onClick={() => openCanvasDrawer(codeStr, match[1])}
-                                className="absolute top-2 right-12 bg-surface-raised border border-border text-muted hover:text-accent text-[11px] px-2 py-1 rounded opacity-0 group-hover/code:opacity-100 transition-opacity flex items-center gap-1"
-                              >
-                                <PanelRight size={12} /> Open in Canvas
-                              </button>
-                            </div>
-                          ) : (
-                            <code className="bg-ink px-1.5 py-0.5 rounded text-accent font-mono text-xs" {...props}>
-                              {children}
-                            </code>
-                          );
-                        },
-                      }}
+              {messages.map((m, i) => {
+                const { thinking, response } = m.role === "assistant" ? parseMessageContent(m.content) : { thinking: null, response: m.content };
+                return (
+                  <div key={i} className={m.role === "user" ? "text-right" : ""}>
+                    <div
+                      className={`inline-block max-w-[90%] rounded-lg px-4 py-3 text-left relative group ${
+                        m.role === "user" ? "bg-surface-raised text-text" : "bg-surface border border-border"
+                      }`}
                     >
-                      {m.content || (isStreaming && i === messages.length - 1 ? "..." : "")}
-                    </ReactMarkdown>
+                      {/* AI Thinking Process Accordion */}
+                      {m.role === "assistant" && (thinking || (isStreaming && i === messages.length - 1 && showThinkingProcess)) && (
+                        <div className="mb-3 border border-accent/30 rounded bg-accent/5 overflow-hidden text-xs">
+                          <div className="flex items-center justify-between px-3 py-2 bg-accent/10 border-b border-accent/20 text-accent font-mono font-medium">
+                            <span className="flex items-center gap-1.5">
+                              <Brain size={14} className="animate-pulse text-accent" />
+                              <span>{isStreaming && i === messages.length - 1 ? "Thinking & Reasoning..." : "Reasoning Process"}</span>
+                            </span>
+                            <span className="text-[10px] uppercase tracking-wider opacity-80">Chain of Thought</span>
+                          </div>
+                          {showThinkingProcess && (
+                            <div className="p-3 text-muted font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto border-t border-accent/10">
+                              {thinking || (isStreaming && i === messages.length - 1 ? "Analyzing user query, reviewing constraints, and generating optimal response step-by-step..." : "")}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <ReactMarkdown
+                        components={{
+                          code({ node, inline, className, children, ...props }: any) {
+                            const match = /language-(\w+)/.exec(className || "");
+                            const codeStr = String(children).replace(/\n$/, "");
+                            return !inline && match ? (
+                              <div className="relative group/code my-2">
+                                <CodeBlock code={codeStr} language={match[1]} />
+                                <button
+                                  onClick={() => openCanvasDrawer(codeStr, match[1])}
+                                  className="absolute top-2 right-12 bg-surface-raised border border-border text-muted hover:text-accent text-[11px] px-2 py-1 rounded opacity-0 group-hover/code:opacity-100 transition-opacity flex items-center gap-1"
+                                >
+                                  <PanelRight size={12} /> Open in Canvas
+                                </button>
+                              </div>
+                            ) : (
+                              <code className="bg-ink px-1.5 py-0.5 rounded text-accent font-mono text-xs" {...props}>
+                                {children}
+                              </code>
+                            );
+                          },
+                        }}
+                      >
+                        {response || (isStreaming && i === messages.length - 1 ? "..." : "")}
+                      </ReactMarkdown>
 
                     {m.role === "assistant" && m.content && (
                       <div className="mt-2.5 flex items-center gap-3 border-t border-border/40 pt-2 text-xs">
@@ -866,7 +914,8 @@ export default function ChatPage() {
                     )}
                   </div>
                 </div>
-              ))}
+              );
+            })}
 
               {error && (
                 <div className="text-center">

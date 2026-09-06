@@ -10,7 +10,6 @@ import type { User } from "@supabase/supabase-js";
 const PUBLIC_LINKS = [
   { href: "/chat", label: "Chat" },
   { href: "/templates", label: "Templates" },
-  { href: "/voice", label: "Voice Studio" },
   { href: "/code-audit", label: "Code Security" },
   { href: "/tickets", label: "Tickets" },
   { href: "/docs", label: "Docs" },

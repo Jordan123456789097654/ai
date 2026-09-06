@@ -16,7 +16,6 @@ import authRoutes from "./routes/auth.js";
 import discordRoute from "./routes/discord.js";
 import slackRoute from "./routes/slack.js";
 import ticketsRoute from "./routes/tickets.js";
-import audioRoute from "./routes/v1/audio.js";
 import auditRoute from "./routes/audit.js";
 
 const fastify = Fastify({ logger: true, trustProxy: true });
@@ -99,7 +98,6 @@ fastify.route({
 // Public, OpenAI-compatible surface
 await fastify.register(chatCompletionsRoute);
 await fastify.register(modelsRoute);
-await fastify.register(audioRoute);
 
 // Public auth surface — signup / magic-link
 await fastify.register(authRoutes);

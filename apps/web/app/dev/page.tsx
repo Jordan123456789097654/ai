@@ -74,17 +74,54 @@ function DevPortalInner() {
     setBotCommands(botCommands.filter((c) => c.name !== cmdName));
   }
 
-  function toggleBotHost() {
+  const [hostedBotId, setHostedBotId] = useState<string | null>(null);
+  const [hostingLoading, setHostingLoading] = useState(false);
+
+  async function toggleBotHost() {
     if (!discordToken.trim()) {
       alert("Please enter your Discord Bot Token from Discord Developer Portal first.");
       return;
     }
+
     if (botStatus === "Online") {
-      setBotStatus("Offline");
-      alert("Hosted Discord Bot stopped successfully.");
-    } else {
-      setBotStatus("Online");
-      alert(`Hosted Discord Bot launched live! Active prefix: '${botPrefix}' | Active model: '${botModel}' | Commands: ${botCommands.length}`);
+      setHostingLoading(true);
+      try {
+        if (hostedBotId) {
+          await apiFetch(`/dev/discord/host/${hostedBotId}`, { method: "DELETE" }).catch(() => {});
+        }
+      } finally {
+        setBotStatus("Offline");
+        setHostedBotId(null);
+        setHostingLoading(false);
+        alert("Hosted Discord Bot stopped successfully.");
+      }
+      return;
+    }
+
+    setHostingLoading(true);
+    try {
+      const res = await apiFetch("/dev/discord/host", {
+        method: "POST",
+        body: JSON.stringify({
+          token: discordToken.trim(),
+          prefix: botPrefix,
+          model: botModel,
+          restrictions: botRestrictions,
+          commands: botCommands,
+        }),
+      });
+
+      if (res.success && res.bot) {
+        setHostedBotId(res.bot.botId);
+        setBotStatus("Online");
+        alert(`🟢 Hosted Discord Bot Launched & Online!\nBot Name: @${res.bot.botName}\nActive Slash Commands Registered: ${res.bot.commands.length}`);
+      } else {
+        alert("Failed to start Discord Bot hosting.");
+      }
+    } catch (e: any) {
+      alert(`⚠️ Discord Bot Token Error: ${e.message}`);
+    } finally {
+      setHostingLoading(false);
     }
   }
 

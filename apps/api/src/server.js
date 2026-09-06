@@ -14,13 +14,31 @@ import adminRoutes from "./routes/admin.js";
 import conversationsRoutes from "./routes/conversations.js";
 import authRoutes from "./routes/auth.js";
 
-// trustProxy: true so request.ip reflects the real visitor (from X-Forwarded-For)
-// rather than Render's load balancer — needed for per-IP guest rate limiting.
 const fastify = Fastify({ logger: true, trustProxy: true });
 
-// ── Security headers ──────────────────────────────────────────────────────────
+// ── Security headers & CORS ──────────────────────────────────────────────────
 await fastify.register(helmet, { contentSecurityPolicy: false });
-await fastify.register(cors, { origin: true });
+await fastify.register(cors, {
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With", "Accept"],
+});
+
+// Ensure error responses always include CORS headers so browsers don't mask error bodies
+fastify.setErrorHandler((error, request, reply) => {
+  reply.header("Access-Control-Allow-Origin", "*");
+  reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+  reply.header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Requested-With, Accept");
+
+  const statusCode = error.statusCode || 500;
+  reply.status(statusCode).send({
+    error: {
+      message: error.message || "An unexpected error occurred",
+      type: error.name || "api_error",
+      code: statusCode,
+    },
+  });
+});
 
 await fastify.register(swagger, {
   openapi: {
@@ -53,7 +71,7 @@ await fastify.register(swaggerUi, { routePrefix: "/docs" });
 
 // Root probes for load balancers & Render health checks
 fastify.route({
-  method: ["GET", "HEAD"],
+  method: ["GET", "HEAD", "OPTIONS"],
   url: "/",
   handler: async () => ({ status: "ok", service: "kyro-api" }),
 });
@@ -79,7 +97,7 @@ fastify.get("/health", async (_request, reply) => {
 
   const db = dbResult.status === "fulfilled" ? "ok" : "down";
   const cache = redisResult.status === "fulfilled" ? "ok" : "down";
-  const healthy = db === "ok"; // Postgres is required; Redis cache degradation soft-fails gracefully
+  const healthy = db === "ok";
 
   return reply.code(healthy ? 200 : 503).send({
     status: healthy ? "ok" : "degraded",

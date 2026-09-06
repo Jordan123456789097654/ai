@@ -1275,6 +1275,8 @@ export default function ChatPage() {
                   <p className="text-xs text-text/80 font-mono line-clamp-3 bg-surface/50 p-2 rounded border border-border/50">
                     {res.content}
                   </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>

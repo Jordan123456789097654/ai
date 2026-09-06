@@ -14,7 +14,7 @@ function randomSecret(bytes = 24) {
  * Generates a new API key for a user. Returns the RAW secret exactly once —
  * callers must show it to the user immediately and never persist the raw value.
  */
-export async function createApiKey({ userId, name, rateLimitOverride = null }) {
+export async function createApiKey({ userId, name, rateLimitOverride = null, scopes = "completions", expiresAt = null }) {
   const secret = randomSecret();
   const rawKey = `${env.apiKeyPrefix}${secret}`;
   const keyHash = sha256(rawKey);
@@ -27,6 +27,8 @@ export async function createApiKey({ userId, name, rateLimitOverride = null }) {
       keyHash,
       keyPrefix,
       rateLimitOverride,
+      scopes: Array.isArray(scopes) ? scopes.join(",") : scopes,
+      expiresAt: expiresAt ? new Date(expiresAt) : null,
     },
   });
 
@@ -42,6 +44,7 @@ export async function findActiveKeyByRawSecret(rawKey) {
   });
 
   if (!key || !key.isActive || key.user.isSuspended) return null;
+  if (key.expiresAt && new Date(key.expiresAt) < new Date()) return null;
   return key;
 }
 
@@ -62,6 +65,8 @@ export async function listKeysForUser(userId) {
       keyPrefix: true,
       isActive: true,
       rateLimitOverride: true,
+      scopes: true,
+      expiresAt: true,
       createdAt: true,
       lastUsedAt: true,
     },

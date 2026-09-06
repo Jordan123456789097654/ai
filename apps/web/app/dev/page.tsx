@@ -10,6 +10,8 @@ type ApiKeyRow = {
   name: string;
   keyPrefix: string;
   isActive: boolean;
+  scopes?: string | null;
+  expiresAt?: string | null;
   createdAt: string;
   lastUsedAt: string | null;
 };
@@ -22,6 +24,8 @@ type UsageSummary = {
 function DevPortalInner() {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
+  const [scopes, setScopes] = useState("completions");
+  const [expiresInDays, setExpiresInDays] = useState<number | null>(null);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -45,7 +49,10 @@ function DevPortalInner() {
 
   async function createKey() {
     if (!newKeyName.trim()) return;
-    const data = await apiFetch("/keys", { method: "POST", body: JSON.stringify({ name: newKeyName }) });
+    const data = await apiFetch("/keys", {
+      method: "POST",
+      body: JSON.stringify({ name: newKeyName, scopes, expiresInDays }),
+    });
     setRevealedKey(data.rawKey);
     setNewKeyName("");
     loadKeys();
@@ -76,13 +83,13 @@ function DevPortalInner() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12">
+    <div className="mx-auto max-w-4xl px-6 py-12">
       <h1 className="font-display text-3xl mb-2">Developer portal</h1>
-      <p className="text-muted mb-10">Manage your API keys and usage.</p>
+      <p className="text-muted mb-10">Manage your API keys, scopes, expiration, and token usage.</p>
 
       {revealedKey && (
         <div className="mb-8 rounded border border-accent bg-surface-raised p-4">
-          <p className="text-sm mb-2">Copy this key now — it won't be shown again.</p>
+          <p className="text-sm mb-2 font-medium">Copy this key now — it won't be shown again.</p>
           <div className="flex items-center gap-2 font-mono text-sm bg-ink rounded px-3 py-2">
             <span className="truncate">{revealedKey}</span>
             <button
@@ -93,7 +100,7 @@ function DevPortalInner() {
               }}
               className="ml-auto text-muted hover:text-text"
             >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
             </button>
           </div>
           <button onClick={() => setRevealedKey(null)} className="text-sm text-muted mt-3 hover:text-text">
@@ -102,20 +109,44 @@ function DevPortalInner() {
         </div>
       )}
 
-      <div className="flex gap-2 mb-8">
-        <input
-          value={newKeyName}
-          onChange={(e) => setNewKeyName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && createKey()}
-          placeholder="Key name, e.g. 'production backend'"
-          className="flex-1 bg-surface border border-border rounded px-3 py-2 text-sm outline-none focus:border-accent"
-        />
-        <button
-          onClick={createKey}
-          className="flex items-center gap-1.5 px-4 py-2 bg-accent text-ink rounded text-sm font-medium"
-        >
-          <Plus size={14} /> New key
-        </button>
+      <div className="bg-surface border border-border rounded p-4 mb-8 space-y-3">
+        <h2 className="text-sm font-semibold text-text">Create new API Key</h2>
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && createKey()}
+            placeholder="Key name, e.g. 'Production Backend'"
+            className="flex-1 min-w-[200px] bg-surface-raised border border-border rounded px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+
+          <select
+            value={scopes}
+            onChange={(e) => setScopes(e.target.value)}
+            className="bg-surface-raised border border-border rounded px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          >
+            <option value="completions">Scope: completions</option>
+            <option value="full">Scope: full (all APIs)</option>
+          </select>
+
+          <select
+            value={expiresInDays === null ? "never" : String(expiresInDays)}
+            onChange={(e) => setExpiresInDays(e.target.value === "never" ? null : Number(e.target.value))}
+            className="bg-surface-raised border border-border rounded px-3 py-2 text-sm text-text outline-none focus:border-accent"
+          >
+            <option value="never">Expires: Never</option>
+            <option value="7">Expires: 7 Days</option>
+            <option value="30">Expires: 30 Days</option>
+            <option value="90">Expires: 90 Days</option>
+          </select>
+
+          <button
+            onClick={createKey}
+            className="flex items-center gap-1.5 px-4 py-2 bg-accent text-ink rounded text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <Plus size={14} /> New Key
+          </button>
+        </div>
       </div>
 
       <div className="border border-border rounded overflow-hidden">
@@ -123,8 +154,10 @@ function DevPortalInner() {
           <thead className="bg-surface text-muted text-left">
             <tr>
               <th className="px-4 py-2.5 font-normal">Name</th>
-              <th className="px-4 py-2.5 font-normal">Key</th>
-              <th className="px-4 py-2.5 font-normal">Last used</th>
+              <th className="px-4 py-2.5 font-normal">Key Prefix</th>
+              <th className="px-4 py-2.5 font-normal">Scope</th>
+              <th className="px-4 py-2.5 font-normal">Expires</th>
+              <th className="px-4 py-2.5 font-normal">Last Used</th>
               <th className="px-4 py-2.5 font-normal">Status</th>
               <th className="px-4 py-2.5"></th>
             </tr>
@@ -132,17 +165,25 @@ function DevPortalInner() {
           <tbody>
             {!loading && keys.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-muted">
-                  No API keys yet. Create one to start calling the Kyro API.
+                <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                  No API keys yet. Create one above to start calling the Kyro API.
                 </td>
               </tr>
             )}
             {keys.map((k) => (
               <Fragment key={k.id}>
                 <tr className="border-t border-border">
-                  <td className="px-4 py-3">{k.name}</td>
+                  <td className="px-4 py-3 font-medium">{k.name}</td>
                   <td className="px-4 py-3 font-mono text-muted">{k.keyPrefix}…</td>
-                  <td className="px-4 py-3 text-muted">
+                  <td className="px-4 py-3">
+                    <span className="bg-surface-raised border border-border px-2 py-0.5 rounded text-[11px] font-mono text-accent">
+                      {k.scopes || "completions"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted">
+                    {k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : "Never"}
+                  </td>
+                  <td className="px-4 py-3 text-muted text-xs">
                     {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString() : "Never"}
                   </td>
                   <td className="px-4 py-3">
@@ -172,7 +213,7 @@ function DevPortalInner() {
                 {/* Usage breakdown panel */}
                 {expandedKey === k.id && (
                   <tr key={`${k.id}-usage`} className="border-t border-border bg-surface">
-                    <td colSpan={5} className="px-4 py-4">
+                    <td colSpan={7} className="px-4 py-4">
                       {usageLoading[k.id] ? (
                         <p className="text-muted text-xs">Loading usage…</p>
                       ) : usageByKey[k.id] ? (

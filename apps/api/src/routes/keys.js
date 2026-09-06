@@ -40,12 +40,26 @@ export default async function keysRoutes(fastify) {
         body: {
           type: "object",
           required: ["name"],
-          properties: { name: { type: "string", minLength: 1, maxLength: 100 } },
+          properties: {
+            name: { type: "string", minLength: 1, maxLength: 100 },
+            scopes: { type: "string" },
+            expiresInDays: { type: "integer", nullable: true },
+          },
         },
       },
     },
     async (request, reply) => {
-      const { rawKey, key } = await createApiKey({ userId: request.user.id, name: request.body.name });
+      const { name, scopes = "completions", expiresInDays } = request.body;
+      let expiresAt = null;
+      if (expiresInDays && Number(expiresInDays) > 0) {
+        expiresAt = new Date(Date.now() + Number(expiresInDays) * 24 * 60 * 60 * 1000);
+      }
+      const { rawKey, key } = await createApiKey({
+        userId: request.user.id,
+        name,
+        scopes,
+        expiresAt,
+      });
       // The raw secret is returned exactly once — the frontend must show a
       // "copy this now" dialog, since it's never retrievable again.
       return reply.code(201).send({ rawKey, key });

@@ -9,6 +9,8 @@ import type { User } from "@supabase/supabase-js";
 // Chat and Docs are open to everyone — chat works without an account.
 const PUBLIC_LINKS = [
   { href: "/chat", label: "Chat" },
+  { href: "/workflows", label: "Workflows" },
+  { href: "/db", label: "DB Connect" },
   { href: "/docs", label: "Docs" },
   { href: "/support", label: "Support" },
 ];

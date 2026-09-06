@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Kyro AI — Grammarly-Style Writing & Coding Assistant",
+  "version": "1.0.0",
+  "description": "AI writing, grammar fixing, code refactoring, and text completion powered by Kyro AI.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://kyro-api-auou.onrender.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

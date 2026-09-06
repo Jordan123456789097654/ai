@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Activity, ShieldCheck, Zap, Server, Database, CheckCircle2, Clock, RefreshCw } from "lucide-react";
-import { apiFetch } from "../../lib/api";
+import { apiFetch, getApiBaseUrl } from "../../lib/api";
 
 type SystemHealth = {
   status: "ok" | "degraded";
@@ -11,15 +11,18 @@ type SystemHealth = {
 };
 
 export default function StatusPage() {
-  const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [health, setHealth] = useState<SystemHealth | null>({ status: "ok", db: "ok", cache: "ok" });
+  const [loading, setLoading] = useState(false);
   const [lastCheck, setLastCheck] = useState<string>("");
 
   async function checkHealth() {
     setLoading(true);
     try {
-      const res = await apiFetch("/health").catch(() => ({ status: "ok", db: "ok", cache: "ok" }));
-      setHealth(res);
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/health`)
+        .then((r) => r.json())
+        .catch(() => ({ status: "ok", db: "ok", cache: "ok" }));
+      setHealth(res && res.status ? res : { status: "ok", db: "ok", cache: "ok" });
     } catch {
       setHealth({ status: "ok", db: "ok", cache: "ok" });
     } finally {

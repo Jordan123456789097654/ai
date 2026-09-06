@@ -16,10 +16,12 @@ export default function ChatSidebar({
   activeId,
   onSelect,
   onNew,
+  onOpenSearch,
 }: {
   activeId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
+  onOpenSearch?: () => void;
 }) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [folders, setFolders] = useState<{ id: string; name: string }[]>(DEFAULT_FOLDERS);
@@ -112,7 +114,7 @@ export default function ChatSidebar({
       )}
 
       {/* Search Input */}
-      <div className="p-2 border-b border-border">
+      <div className="p-2 border-b border-border space-y-1">
         <div className="flex items-center gap-2 bg-surface border border-border rounded px-2.5 py-1.5 text-xs">
           <Search size={14} className="text-muted shrink-0" />
           <input
@@ -122,6 +124,15 @@ export default function ChatSidebar({
             placeholder="Search chats..."
             className="w-full bg-transparent outline-none text-text"
           />
+          {onOpenSearch && (
+            <button
+              onClick={onOpenSearch}
+              className="px-1.5 py-0.5 rounded bg-surface-raised border border-border text-[10px] text-accent font-mono hover:border-accent shrink-0"
+              title="Global Deep Search across all threads & code"
+            >
+              Ctrl+K
+            </button>
+          )}
         </div>
       </div>
 

@@ -256,8 +256,69 @@ function DevPortalInner() {
           </tbody>
         </table>
       </div>
+      {/* Daily Token Budget Soft Caps & Limit Alerts */}
+      <div className="mt-8 bg-surface border border-border rounded p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="font-display text-lg text-text">Daily Token Budget & Soft Caps</h2>
+            <p className="text-xs text-muted">Set daily usage limits to prevent unexpected overages and trigger soft cap notifications.</p>
+          </div>
+          <span className="bg-surface-raised border border-border px-2.5 py-1 rounded text-xs font-mono text-accent">Active Guardrails</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1">Max Daily Token Cap</label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                defaultValue={100000}
+                className="flex-1 bg-surface-raised border border-border rounded px-3 py-2 text-sm font-mono outline-none focus:border-accent"
+              />
+              <span className="px-3 py-2 bg-surface-raised border border-border rounded text-xs font-mono text-muted flex items-center">tokens/day</span>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted mb-1">Daily Spend Soft Cap ($USD)</label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                defaultValue={5.00}
+                step={0.50}
+                className="flex-1 bg-surface-raised border border-border rounded px-3 py-2 text-sm font-mono outline-none focus:border-accent"
+              />
+              <span className="px-3 py-2 bg-surface-raised border border-border rounded text-xs font-mono text-muted flex items-center">USD/day</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Usage Progress Meter */}
+        <div className="space-y-1.5 pt-2">
+          <div className="flex justify-between text-xs font-mono">
+            <span className="text-muted">Today's Token Consumption</span>
+            <span className="text-accent font-semibold">38,450 / 100,000 tokens (38.5%)</span>
+          </div>
+          <div className="w-full h-2 bg-surface-raised rounded-full overflow-hidden border border-border">
+            <div className="h-full bg-accent rounded-full" style={{ width: "38.5%" }}></div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <label className="flex items-center gap-2 text-xs text-muted cursor-pointer">
+            <input type="checkbox" defaultChecked className="accent-accent" />
+            <span>Trigger HTTP Webhook Alert upon reaching 80% soft cap threshold</span>
+          </label>
+          <button
+            onClick={() => alert("Daily token soft cap updated successfully!")}
+            className="px-4 py-2 bg-accent text-ink rounded text-xs font-semibold hover:opacity-90 transition-opacity"
+          >
+            Save Soft Cap Settings
+          </button>
+        </div>
+      </div>
+
       {/* Custom Synthetic Model Aliases */}
-      <div className="mt-12 bg-surface border border-border rounded p-6 space-y-4">
+      <div className="mt-8 bg-surface border border-border rounded p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div>
             <h2 className="font-display text-lg text-text">Custom Synthetic Model Aliases</h2>

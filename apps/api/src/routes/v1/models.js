@@ -14,6 +14,12 @@ export default async function modelsRoute(fastify) {
       },
     },
     async () => {
+      const syntheticModels = [
+        { id: "kyro-coder-pro", name: "Kyro Coder Pro (32B)", description: "Specialized code generation & refactoring model (Qwen 2.5 Coder 32B)", object: "model", created: Math.floor(Date.now() / 1000), owned_by: "kyro" },
+        { id: "kyro-flash-8b", name: "Kyro Flash (8B)", description: "Ultra-fast response model", object: "model", created: Math.floor(Date.now() / 1000), owned_by: "kyro" },
+        { id: "kyro-ultra-70b", name: "Kyro Ultra (70B)", description: "Deep reasoning and complex instructions", object: "model", created: Math.floor(Date.now() / 1000), owned_by: "kyro" },
+      ];
+
       try {
         const res = await fetch(`${env.inferenceBaseUrl}/models`, {
           headers: {
@@ -32,7 +38,7 @@ export default async function modelsRoute(fastify) {
               created: m.created || Math.floor(Date.now() / 1000),
               owned_by: "kyro",
             }));
-            return { object: "list", data: liveModels };
+            return { object: "list", data: [...syntheticModels, ...liveModels] };
           }
         }
       } catch (err) {
@@ -42,16 +48,7 @@ export default async function modelsRoute(fastify) {
       // Fallback model list
       return {
         object: "list",
-        data: [
-          {
-            id: "llama-3.3-70b-versatile",
-            name: "Kyro Ultra (70B)",
-            description: "High performance language model",
-            object: "model",
-            created: Math.floor(Date.now() / 1000),
-            owned_by: "kyro",
-          },
-        ],
+        data: syntheticModels,
       };
     }
   );

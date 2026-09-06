@@ -24,6 +24,7 @@ import {
   Bot,
   HelpCircle,
   Github,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 import JSZip from "jszip";
@@ -35,6 +36,7 @@ import CodeBlock from "../../components/CodeBlock";
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 
 const MODELS = [
+  { id: "kyro-coder-pro", name: "Kyro Coder Pro (32B)", desc: "Specialized code generation & refactoring" },
   { id: "kyro-flash-8b", name: "Kyro Flash (8B)", desc: "Ultra-fast response model" },
   { id: "kyro-ultra-70b", name: "Kyro Ultra (70B)", desc: "Deep reasoning & coding" },
   { id: "kyro-mixtral-8x7b", name: "Kyro Mixtral (8x7B)", desc: "Expanded context window" },
@@ -98,6 +100,38 @@ export default function ChatPage() {
 
   // Modals & Popups
   const [showPromptLibrary, setShowPromptLibrary] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowSearchModal((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  async function performGlobalSearch(q: string) {
+    setSearchQuery(q);
+    if (!q.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await apiFetch(`/conversations/search?q=${encodeURIComponent(q)}`);
+      setSearchResults(res || []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }
 
   // Speech Recognition & TTS
   const [isListening, setIsListening] = useState(false);
@@ -450,7 +484,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex">
-      {signedIn && <ChatSidebar activeId={conversationId} onSelect={selectConversation} onNew={startNewChat} />}
+      {signedIn && <ChatSidebar activeId={conversationId} onSelect={selectConversation} onNew={startNewChat} onOpenSearch={() => setShowSearchModal(true)} />}
 
       <div className="flex-1 flex h-[calc(100vh-73px)] overflow-hidden">
         {/* Main Chat Thread Area */}
@@ -987,6 +1021,65 @@ export default function ChatPage() {
               >
                 Proceed with Execution
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Code & Conversation Search Modal (Ctrl+K) */}
+      {showSearchModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20 p-4">
+          <div className="bg-surface border border-border rounded-lg max-w-2xl w-full p-4 space-y-3 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2 text-text font-medium text-sm">
+                <Search size={16} className="text-accent" />
+                <span>Global Code Snippet & Conversation Search</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-muted border border-border rounded px-1.5 py-0.5">Ctrl + K</span>
+                <button onClick={() => setShowSearchModal(false)} className="text-muted hover:text-text p-1">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => performGlobalSearch(e.target.value)}
+                placeholder="Search across all historic code snippets & messages..."
+                className="w-full bg-surface-raised border border-border rounded p-2.5 text-sm outline-none focus:border-accent font-mono text-text pl-9"
+              />
+              <Search size={16} className="absolute left-3 top-3 text-muted" />
+            </div>
+
+            <div className="max-h-96 overflow-y-auto space-y-2 pt-1">
+              {isSearching && <p className="text-xs text-muted p-2">Searching code snippets & conversations...</p>}
+              {!isSearching && searchQuery && searchResults.length === 0 && (
+                <p className="text-xs text-muted p-2">No matching messages or code snippets found.</p>
+              )}
+              {searchResults.map((res) => (
+                <div
+                  key={res.id}
+                  onClick={() => {
+                    selectConversation(res.conversationId);
+                    setShowSearchModal(false);
+                  }}
+                  className="bg-surface-raised border border-border hover:border-accent rounded p-3 cursor-pointer space-y-1 transition-all"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-accent truncate">{res.title}</span>
+                    <span className="bg-surface border border-border px-1.5 py-0.5 rounded text-[10px] uppercase font-mono text-muted">
+                      {res.role}
+                    </span>
+                  </div>
+                  <p className="text-xs text-text/80 font-mono line-clamp-3 bg-surface/50 p-2 rounded border border-border/50">
+                    {res.content}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -25,6 +25,28 @@ export default async function conversationsRoutes(fastify) {
       });
     });
 
+    protectedFastify.get("/conversations/search", { schema: { tags: ["chat-history"] } }, async (request) => {
+      const q = request.query.q || "";
+      if (!q.trim()) return [];
+      const messages = await prisma.message.findMany({
+        where: {
+          conversation: { userId: request.user.id },
+          content: { contains: q, mode: "insensitive" },
+        },
+        include: { conversation: { select: { id: true, title: true, updatedAt: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 25,
+      });
+      return messages.map((m) => ({
+        id: m.id,
+        conversationId: m.conversationId,
+        title: m.conversation.title,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt,
+      }));
+    });
+
     protectedFastify.get("/conversations/:id", { schema: { tags: ["chat-history"] } }, async (request, reply) => {
       const convo = await prisma.conversation.findFirst({
         where: { id: request.params.id, userId: request.user.id },

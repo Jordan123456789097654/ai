@@ -73,7 +73,12 @@ async function fetchAvailableModels() {
  * is decommissioned or returns an error.
  */
 export async function callInference({ messages, model, temperature, topP, maxTokens, stream }) {
-  const primaryModel = model || env.inferenceModel || "llama-3.3-70b-versatile";
+  let primaryModel = model || env.inferenceModel || "llama-3.3-70b-versatile";
+
+  // Specialized coding model mapping
+  if (primaryModel === "kyro-coder-pro" || primaryModel === "kyro-coder-70b") {
+    primaryModel = "qwen-2.5-coder-32b";
+  }
 
   let response = await makeRequest(primaryModel, { messages, temperature, topP, maxTokens, stream });
 

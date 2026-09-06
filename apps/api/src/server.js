@@ -16,15 +16,28 @@ import authRoutes from "./routes/auth.js";
 
 const fastify = Fastify({ logger: true, trustProxy: true });
 
-// ── Security headers & CORS ──────────────────────────────────────────────────
-await fastify.register(helmet, { contentSecurityPolicy: false });
+// ── Global CORS Preflight & Header Hook ──────────────────────────────────────
+// Intercepts preflight OPTIONS and injects CORS headers into ALL responses
+fastify.addHook("onRequest", async (request, reply) => {
+  reply.header("Access-Control-Allow-Origin", "*");
+  reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+  reply.header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Requested-With, Accept");
+
+  if (request.method === "OPTIONS") {
+    return reply.status(200).send();
+  }
+});
+
+// Register plugins
 await fastify.register(cors, {
   origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With", "Accept"],
 });
 
-// Ensure error responses always include CORS headers so browsers don't mask error bodies
+await fastify.register(helmet, { contentSecurityPolicy: false });
+
+// Ensure error responses always include CORS headers
 fastify.setErrorHandler((error, request, reply) => {
   reply.header("Access-Control-Allow-Origin", "*");
   reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");

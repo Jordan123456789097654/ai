@@ -105,3 +105,22 @@ model Message {
   @@index([conversationId])
   @@map("messages")
 }
+
+model SupportTicket {
+  id              String   @id @default(uuid())
+  ticketNumber    String   @unique @map("ticket_number")
+  customerEmail   String   @map("customer_email")
+  subject         String
+  body            String   @db.Text
+  status          String   @default("Pending Review")
+  sentiment       String   @default("Neutral")
+  category        String   @default("Technical Bug")
+  aiConfidence    Float?   @map("ai_confidence")
+  aiDraftResponse String?  @map("ai_draft_response") @db.Text
+  fullChatHistory String?  @map("full_chat_history") @db.Text
+  adminReply      String?  @map("admin_reply") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("support_tickets")
+}

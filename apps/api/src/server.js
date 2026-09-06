@@ -136,6 +136,24 @@ fastify.get("/openapi.json", async () => fastify.swagger());
 try {
   await prisma.$executeRawUnsafe(`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes TEXT DEFAULT 'completions';`);
   await prisma.$executeRawUnsafe(`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id TEXT PRIMARY KEY,
+      ticket_number TEXT UNIQUE NOT NULL,
+      customer_email TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      status TEXT DEFAULT 'Pending Review',
+      sentiment TEXT DEFAULT 'Neutral',
+      category TEXT DEFAULT 'Technical Bug',
+      ai_confidence DOUBLE PRECISION,
+      ai_draft_response TEXT,
+      full_chat_history TEXT,
+      admin_reply TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+  `);
 } catch (e) {
   fastify.log.warn(`Auto-migration note: ${e.message}`);
 }

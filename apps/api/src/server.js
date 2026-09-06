@@ -18,14 +18,16 @@ const fastify = Fastify({ logger: true, trustProxy: true });
 
 // ── Global CORS Preflight & Header Hook ──────────────────────────────────────
 // Intercepts preflight OPTIONS and injects CORS headers into ALL responses
-fastify.addHook("onRequest", async (request, reply) => {
+fastify.addHook("onRequest", (request, reply, done) => {
   reply.header("Access-Control-Allow-Origin", "*");
   reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
   reply.header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Requested-With, Accept");
 
   if (request.method === "OPTIONS") {
-    return reply.status(200).send();
+    reply.status(200).send();
+    return;
   }
+  done();
 });
 
 // Register plugins

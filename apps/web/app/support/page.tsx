@@ -85,6 +85,29 @@ export default function SupportPage() {
           />
           <Search size={16} className="absolute left-3 top-5 text-muted" />
         </div>
+      {/* Tawk.to Live Chat Banner */}
+      <div className="border border-accent/40 bg-accent/5 rounded-lg p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="space-y-1 text-center md:text-left">
+          <h2 className="font-display text-lg text-accent font-bold flex items-center justify-center md:justify-start gap-2">
+            <MessageSquare size={20} /> Live Chat Support (Powered by Tawk.to)
+          </h2>
+          <p className="text-xs text-muted">
+            Connect instantly with our support team in real-time. Click the button or use the live chat widget at the bottom right.
+          </p>
+        </div>
+
+        <button
+          onClick={() => {
+            if ((window as any).Tawk_API?.maximize) {
+              (window as any).Tawk_API.maximize();
+            } else {
+              alert("Live Chat is initializing... Look for the chat widget in the bottom right corner!");
+            }
+          }}
+          className="px-5 py-2.5 bg-accent text-ink font-semibold rounded text-xs flex items-center gap-2 hover:opacity-90 transition-opacity whitespace-nowrap"
+        >
+          <MessageSquare size={14} /> Open Live Chat Now
+        </button>
       </div>
 
       <section className="border border-border rounded-lg bg-surface p-6 space-y-4">

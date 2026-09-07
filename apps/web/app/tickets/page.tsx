@@ -514,7 +514,7 @@ export default function TicketsPage() {
                     value={staffInput}
                     onChange={(e) => setStaffInput(e.target.value)}
                     placeholder="Type official staff response or use AI Write Staff Response..."
-                    className="w-full bg-bg border border-border rounded-lg p-3 text-xs text-text font-mono outline-none focus:border-success leading-relaxed"
+                    className="w-full bg-[#0B0D14] border border-[#252D40] rounded-lg p-3 text-xs text-white placeholder-gray-500 font-mono outline-none focus:border-success leading-relaxed"
                   />
 
                   <div className="flex items-center justify-between pt-1">
@@ -567,7 +567,7 @@ export default function TicketsPage() {
                 value={newSnippetTitle}
                 onChange={(e) => setNewSnippetTitle(e.target.value)}
                 placeholder="e.g., API Quota Reset"
-                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-xs font-mono text-text outline-none focus:border-accent"
+                className="w-full bg-[#0B0D14] border border-[#252D40] rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-gray-500 outline-none focus:border-accent"
               />
             </div>
 
@@ -578,7 +578,7 @@ export default function TicketsPage() {
                 value={newSnippetCategory}
                 onChange={(e) => setNewSnippetCategory(e.target.value)}
                 placeholder="e.g., Billing, Rate Limits"
-                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-xs font-mono text-text outline-none focus:border-accent"
+                className="w-full bg-[#0B0D14] border border-[#252D40] rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-gray-500 outline-none focus:border-accent"
               />
             </div>
 
@@ -590,7 +590,7 @@ export default function TicketsPage() {
                 value={newSnippetContent}
                 onChange={(e) => setNewSnippetContent(e.target.value)}
                 placeholder="Hello {customer_name}, regarding ticket #{ticket_id}..."
-                className="w-full bg-surface-raised border border-border rounded-lg p-3 text-xs font-mono text-text outline-none focus:border-accent"
+                className="w-full bg-[#0B0D14] border border-[#252D40] rounded-lg p-3 text-xs font-mono text-white placeholder-gray-500 outline-none focus:border-accent"
               />
             </div>
 
@@ -629,7 +629,7 @@ export default function TicketsPage() {
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="customer@enterprise.com"
-                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-accent font-mono text-text"
+                className="w-full bg-[#0B0D14] border border-[#252D40] rounded-lg px-3 py-2 text-xs outline-none focus:border-accent font-mono text-white placeholder-gray-500"
               />
             </div>
 
@@ -641,7 +641,7 @@ export default function TicketsPage() {
                 value={newSubject}
                 onChange={(e) => setNewSubject(e.target.value)}
                 placeholder="e.g., Question regarding custom webhooks retry policy"
-                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-accent font-mono text-text"
+                className="w-full bg-[#0B0D14] border border-[#252D40] rounded-lg px-3 py-2 text-xs outline-none focus:border-accent font-mono text-white placeholder-gray-500"
               />
             </div>
 
@@ -653,7 +653,7 @@ export default function TicketsPage() {
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
                 placeholder="Type customer message here..."
-                className="w-full bg-surface-raised border border-border rounded-lg p-3 text-xs outline-none focus:border-accent font-sans text-text"
+                className="w-full bg-[#0B0D14] border border-[#252D40] rounded-lg p-3 text-xs outline-none focus:border-accent font-sans text-white placeholder-gray-500"
               />
             </div>
 

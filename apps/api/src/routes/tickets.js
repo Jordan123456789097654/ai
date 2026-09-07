@@ -99,6 +99,34 @@ export default async function ticketsRoute(fastify) {
     });
   });
 
+  // Get customer specific support tickets by email (User-based Ticket Tabs)
+  fastify.get("/v1/tickets/user/:email", async (request, reply) => {
+    const { email } = request.params;
+    let userTickets = [];
+    try {
+      userTickets = await prisma.supportTicket.findMany({
+        where: { customerEmail: { equals: email, mode: "insensitive" } },
+        orderBy: { createdAt: "desc" },
+      });
+    } catch {}
+
+    if (userTickets.length === 0) {
+      userTickets = memoryTicketsFallback.filter(
+        (t) => t.customerEmail.toLowerCase() === email.toLowerCase()
+      );
+    }
+
+    const parsedUserTickets = userTickets.map((t) => {
+      let parsedThread = [];
+      try {
+        if (t.fullChatHistory) parsedThread = JSON.parse(t.fullChatHistory);
+      } catch {}
+      return { ...t, parsedThread };
+    });
+
+    return reply.send({ success: true, tickets: parsedUserTickets });
+  });
+
   // AI Support Assistant Interactive Endpoint
   fastify.post("/v1/support/ai-chat", async (request, reply) => {
     const { message, customerEmail = "user@example.com", history = [] } = request.body || {};

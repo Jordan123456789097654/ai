@@ -19,6 +19,8 @@ const PUBLIC_LINKS = [
 // Requires a signed-in account.
 const AUTHED_LINKS = [{ href: "/dev", label: "Developer portal" }];
 
+import KyroLogo from "./KyroLogo";
+
 export default function SiteNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -80,8 +82,8 @@ export default function SiteNav() {
   return (
     <header className="border-b border-border">
       <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-2 font-display text-lg tracking-tight group">
-          <img src="/logo.png" alt="Kyro AI Logo" className="h-8 md:h-9 w-auto object-contain transition-transform group-hover:scale-105" />
+        <Link href="/" className="flex items-center gap-2 group">
+          <KyroLogo size="md" />
         </Link>
 
         <nav className="flex items-center gap-1">

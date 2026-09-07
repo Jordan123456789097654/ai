@@ -27,8 +27,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 # standalone/ contains a self-contained server.js + its minimal node_modules.
 COPY --from=builder /app/.next/standalone ./
-# Static assets must be copied separately.
+# Static assets and public files must be copied separately.
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"

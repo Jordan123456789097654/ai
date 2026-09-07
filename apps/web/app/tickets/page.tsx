@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Inbox, CheckCircle2, AlertTriangle, MessageSquare, Send, Sparkles, Sliders, Plus, Tag, ShieldCheck, UserCheck, RefreshCw, Bot, User, CornerDownLeft, Clock, Star, FileText, BookmarkPlus } from "lucide-react";
+import { Inbox, CheckCircle2, AlertTriangle, MessageSquare, Send, Sparkles, Sliders, Plus, Tag, ShieldCheck, UserCheck, RefreshCw, Bot, User, CornerDownLeft, Clock, Star, FileText, BookmarkPlus, ShieldAlert, Shield } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
 type MessageItem = {
@@ -30,6 +30,7 @@ type Ticket = {
   category: string;
   aiConfidence?: number;
   aiDraftResponse?: string;
+  aiSummary?: string;
   adminReply?: string;
   fullChatHistory?: string;
   csatRating?: number;
@@ -170,6 +171,26 @@ export default function TicketsPage() {
       alert(`Error sending staff message: ${e.message}`);
     } finally {
       setIsSendingStaff(false);
+    }
+  }
+
+  async function handleAdminTakeover() {
+    if (!selectedTicket) return;
+    const ticketId = selectedTicket.id || selectedTicket.ticketNumber || "";
+    try {
+      const res = await apiFetch(`/v1/tickets/${ticketId}/takeover`, {
+        method: "POST",
+        body: JSON.stringify({ adminName: "Admin (You)" }),
+      });
+      if (res.ticket) {
+        setTickets((prev) =>
+          prev.map((t) => (t.id === ticketId ? { ...t, ...res.ticket, status: "Admin Assigned" } : t))
+        );
+        setSelectedTicket((prev) => (prev ? { ...prev, ...res.ticket, status: "Admin Assigned" } : null));
+        parseThread({ ...selectedTicket, ...res.ticket, status: "Admin Assigned" });
+      }
+    } catch (e: any) {
+      alert(`Error taking over ticket: ${e.message}`);
     }
   }
 
@@ -407,18 +428,50 @@ export default function TicketsPage() {
             {selectedTicket ? (
               <div className="space-y-6">
                 {/* Header Info */}
-                <div className="border-b border-border pb-4 space-y-2">
+                <div className="border-b border-border pb-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-xs text-accent font-bold">{selectedTicket.id}</span>
                     <span className="text-xs text-muted font-mono">{new Date(selectedTicket.createdAt).toLocaleString()}</span>
                   </div>
-                  <h2 className="font-display text-xl font-bold text-text">{selectedTicket.subject}</h2>
+                  
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                    <h2 className="font-display text-xl font-bold text-text">{selectedTicket.subject}</h2>
+
+                    {selectedTicket.status !== "Admin Assigned" && selectedTicket.status !== "Resolved" ? (
+                      <button
+                        onClick={handleAdminTakeover}
+                        className="px-3 py-1.5 bg-accent text-ink font-semibold rounded-lg text-xs font-mono flex items-center gap-1.5 hover:opacity-90 transition-all shrink-0"
+                      >
+                        <ShieldAlert size={14} /> Take Over Ticket from AI
+                      </button>
+                    ) : (
+                      <span className="bg-success/10 text-success border border-success/30 px-3 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1">
+                        <UserCheck size={12} /> Admin Active
+                      </span>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-between text-xs font-mono text-muted">
                     <span>Customer: <strong className="text-text">{selectedTicket.customerEmail}</strong></span>
                     <span className="flex items-center gap-1">
                       Status: <strong className="text-accent">{selectedTicket.status}</strong>
                     </span>
                   </div>
+                </div>
+
+                {/* AI Inquiry Summary Banner (Why Customer Contacted) */}
+                <div className="bg-accent/10 border border-accent/40 rounded-xl p-4 space-y-1.5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-bold text-accent flex items-center gap-1.5">
+                      <Sparkles size={16} /> AI Executive Inquiry Summary
+                    </span>
+                    <span className="text-[10px] font-mono text-accent bg-accent/20 px-2 py-0.5 rounded font-bold">
+                      Auto-Summarized
+                    </span>
+                  </div>
+                  <p className="text-xs text-text font-sans leading-relaxed font-semibold">
+                    {selectedTicket.aiSummary || `Customer contacted support regarding: "${selectedTicket.subject}". AI Agent ingested prompt and escalated to Admin queue.`}
+                  </p>
                 </div>
 
                 {/* CSAT Customer Rating Badge if Present */}

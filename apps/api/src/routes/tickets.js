@@ -14,6 +14,7 @@ let memoryTicketsFallback = [
     sentiment: "Urgent",
     category: "Technical Bug",
     aiConfidence: 0.72,
+    aiSummary: "Customer is hitting 429 rate limits during nightly batch processing scripts with 50 parallel connections and requested a soft limit cap increase.",
     aiDraftResponse: "Hello Sarah,\n\nThanks for reaching out! Your current API soft cap is set to 100,000 daily tokens. To accommodate high-concurrency batch jobs, you can configure your soft cap threshold in the Developer Portal under `/dev` or upgrade to an Enterprise Tier key for elevated concurrency quotas.\n\nLet us know if you would like our support team to double your burst rate limit manually!\n\nBest regards,\nKyro AI Support Team",
     fullChatHistory: JSON.stringify([
       { sender: "You", text: "Hi team, we are hitting 429 rate limits when executing our nightly batch processing script with 50 parallel connections. How can we increase our soft limit?", time: "10:14 AM" },
@@ -22,6 +23,25 @@ let memoryTicketsFallback = [
     createdAt: new Date(Date.now() - 3600000).toISOString(),
   },
 ];
+
+function generateInquirySummary(message, history = []) {
+  const userMessages = (history || []).filter((h) => h.sender === "You" || h.role === "user").map((h) => h.text);
+  const fullText = userMessages.length > 0 ? userMessages.join("; ") : message;
+  const lower = fullText.toLowerCase();
+
+  let cause = "Customer requested live staff support.";
+  if (lower.includes("rate limit") || lower.includes("429") || lower.includes("quota")) {
+    cause = "Customer experienced API rate limit (429) errors and requested quota elevation.";
+  } else if (lower.includes("bill") || lower.includes("refund") || lower.includes("pay")) {
+    cause = "Customer submitted a billing inquiry regarding pricing tiers or invoices.";
+  } else if (lower.includes("key") || lower.includes("token") || lower.includes("auth")) {
+    cause = "Customer inquired about API key scopes, rotation, or authentication errors.";
+  } else if (lower.includes("bug") || lower.includes("error") || lower.includes("crash")) {
+    cause = "Customer reported an application bug or runtime error.";
+  }
+
+  return `${cause} Primary prompt: "${fullText.slice(0, 90)}${fullText.length > 90 ? "..." : ""}"`;
+}
 
 let workflowSettings = {
   autoSendEnabled: false,
@@ -147,19 +167,21 @@ export default async function ticketsRoute(fastify) {
 
     if (needsEscalation) {
       const ticketNum = `TCK-${Math.floor(1000 + Math.random() * 9000)}`;
-      const subjectStr = `AI Chat Escalation: "${message.slice(0, 45)}..."`;
-      const bodyStr = `Customer Query: ${message}\n\nFull Chat History:\n${history.map((h) => `${h.sender}: ${h.text}`).join("\n")}`;
+      const cleanSubject = `Live Escalation: ${message.slice(0, 50)}${message.length > 50 ? "..." : ""}`;
+      const cleanBody = message.trim();
+      const summaryText = generateInquirySummary(message, history);
 
       const newTicketPayload = {
         id: ticketNum,
         ticketNumber: ticketNum,
         customerEmail,
-        subject: subjectStr,
-        body: bodyStr,
+        subject: cleanSubject,
+        body: cleanBody,
         status: "Escalated to Admin",
         sentiment: "Urgent",
         category: "AI_Escalation",
         aiConfidence: 0.45,
+        aiSummary: summaryText,
         aiDraftResponse: `Hello,\n\nOur AI Support Agent has forwarded your request to our Human Admin Team. An administrator is reviewing your inquiry in the Admin Panel and will reply shortly.\n\nBest regards,\nKyro Support Team`,
         fullChatHistory: JSON.stringify(history),
       };
@@ -426,6 +448,55 @@ Kyro Staff Support Team`;
     };
     cannedSnippetsStore.push(newSnippet);
     return reply.send({ success: true, snippet: newSnippet });
+  });
+
+  // Admin Takeover Endpoint: Admin takes over ticket from AI
+  fastify.post("/v1/tickets/:id/takeover", async (request, reply) => {
+    const { id } = request.params;
+    const { adminName = "Admin Support" } = request.body || {};
+
+    const takeoverMsg = {
+      sender: "System",
+      text: `🛡️ [Admin Takeover]: ${adminName} has taken over this ticket. AI auto-responses disabled.`,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      role: "staff",
+    };
+
+    // Try DB update
+    try {
+      const existing = await prisma.supportTicket.findFirst({ where: { OR: [{ id }, { ticketNumber: id }] } });
+      if (existing) {
+        let historyArray = [];
+        try {
+          if (existing.fullChatHistory) historyArray = JSON.parse(existing.fullChatHistory);
+        } catch {}
+        historyArray.push(takeoverMsg);
+
+        const updated = await prisma.supportTicket.update({
+          where: { id: existing.id },
+          data: {
+            status: "Admin Assigned",
+            fullChatHistory: JSON.stringify(historyArray),
+          },
+        });
+        return reply.send({ success: true, ticket: updated, takeoverMsg });
+      }
+    } catch {}
+
+    // Fallback in-memory update
+    const mem = memoryTicketsFallback.find((t) => t.id === id || t.ticketNumber === id);
+    if (mem) {
+      let historyArray = [];
+      try {
+        if (mem.fullChatHistory) historyArray = JSON.parse(mem.fullChatHistory);
+      } catch {}
+      historyArray.push(takeoverMsg);
+      mem.fullChatHistory = JSON.stringify(historyArray);
+      mem.status = "Admin Assigned";
+      return reply.send({ success: true, ticket: mem, takeoverMsg });
+    }
+
+    return reply.status(404).send({ error: "Ticket not found." });
   });
 
   // Update Settings & System Instructions

@@ -6,8 +6,8 @@ export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-1 mx-auto max-w-4xl px-6 py-24">
-        <div className="mb-6 flex items-center gap-3">
-          <KyroLogo size="lg" />
+        <div className="mb-8 flex items-center gap-3">
+          <KyroLogo size="xl" />
         </div>
         <p className="font-mono text-sm text-signal mb-4">self-hosted · OpenAI-compatible</p>
         <h1 className="font-display text-5xl leading-tight mb-6">

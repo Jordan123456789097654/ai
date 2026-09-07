@@ -63,7 +63,7 @@ export default function SupportPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       sender: "AI Agent",
-      text: "Hello! I am Kyro AI Support Agent. Ask me anything about your account, API keys, models, rate limits, or billing. If I am unable to answer your inquiry, I will automatically create a real support ticket in our database and escalate it to an Admin in our Admin Panel.",
+      text: "Hey there! 👋 I am Kyro AI Support Agent — your 24/7 technical co-pilot! Ask me anything about API keys, model benchmarks, rate limits, PostgreSQL database queries, or visual workflows. If you ever need a human admin, just say 'Talk to Human' and I'll create a database ticket for you instantly!",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
   ]);

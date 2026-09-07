@@ -199,28 +199,133 @@ export default async function ticketsRoute(fastify) {
       });
     }
 
-    // Detailed AI Knowledge Base of the entire Kyro Platform
+    // Warm, Intelligent, Developer-Centric Kyro AI Response Engine
     let aiResponse = "";
-    if (lower.includes("api key") || lower.includes("token")) {
-      aiResponse = "To generate API keys, visit the Developer Portal at `/dev`. Keys begin with `kyro_sk_live_...` and support custom scopes (`completions`, `full`) and optional expiration dates. Free Tier accounts receive 100,000 daily tokens and a soft cap alert threshold.";
-    } else if (lower.includes("rate limit") || lower.includes("429") || lower.includes("quota")) {
-      aiResponse = "Kyro API rate limits operate on a token bucket algorithm across tiers:\n• Free Tier: 20 Requests/Min (RPM) and 100,000 tokens/day soft cap.\n• Pro Tier ($29/mo): 120 RPM and elevated burst limits.\n• Enterprise Tier: 1,000+ RPM with custom dedicated SLAs.";
-    } else if (lower.includes("model") || lower.includes("kyro-coder") || lower.includes("70b")) {
-      aiResponse = "Kyro supports three high-performance foundation models via `/v1/chat/completions`:\n1. `kyro-coder-pro` (32B Code Specialist for TypeScript, Python, SQL).\n2. `kyro-ultra-70b` (70B Llama 3.3 for deep reasoning & architecture design).\n3. `kyro-flash-8b` (Ultra-fast low latency for instant classification).\nYou can also register custom synthetic model aliases under `/dev`.";
-    } else if (lower.includes("database") || lower.includes("db") || lower.includes("sql")) {
-      aiResponse = "Kyro includes an in-browser Database Explorer at `/db` connected to PostgreSQL & Redis. You can execute raw SQL queries, inspect table schemas (`users`, `api_keys`, `api_usage_logs`, `support_tickets`), and export query results.";
-    } else if (lower.includes("workflow") || lower.includes("builder")) {
-      aiResponse = "Visual Workflows at `/workflows` allow you to construct drag-and-drop AI pipelines, webhook triggers, and automated data transformers.";
-    } else if (lower.includes("status") || lower.includes("uptime") || lower.includes("sla")) {
-      aiResponse = "Check real-time system metrics on our Status Page at `/status`. Kyro guarantees a 99.9% Monthly Uptime SLA for Pro and Enterprise plans with automated credit refunds if uptime falls below threshold.";
-    } else if (lower.includes("privacy") || lower.includes("train") || lower.includes("security")) {
-      aiResponse = "Kyro enforces a strict Zero Training Policy: prompt inputs and completion outputs are processed ephemerally in memory and are NEVER used to train base LLMs. All API traffic passes through our Secret Masking & PII Redaction Filter.";
-    } else if (lower.includes("template") || lower.includes("starter") || lower.includes("zip")) {
-      aiResponse = "Browse starter kits at `/templates` to download pre-configured project templates (Next.js SaaS, Fastify API, CLI, RAG Agent) in 1-click ZIP files.";
-    } else if (lower.includes("joke")) {
-      aiResponse = "As per my instructions, I refuse to tell jokes. Please let me know how I can assist with your technical or account questions!";
-    } else {
-      aiResponse = "Based on our platform documentation: Kyro provides an open, high-performance AI Gateway (`/v1/chat/completions`), Developer Portal (`/dev`), Database Explorer (`/db`), and Admin Panel (`/admin`). If you need human assistance, reply 'Talk to Human' or ask to escalate, and I will create a support ticket in our database for an admin.";
+
+    // 1. Greetings & Small Talk
+    if (/^(hi|hello|hey|yo|sup|greetings|howdy|good morning|good afternoon|good evening)/i.test(lower.trim()) || lower === "hello" || lower === "hi") {
+      aiResponse = `Hey there! 👋 Welcome to Kyro AI Support! I'm your AI technical co-pilot. 
+
+Whether you're generating API keys, optimizing rate limits, running SQL in our Database Explorer, or testing 128k context reasoning models in our Beta Lab — I'm here to power up your workflow!
+
+How can I help you today? Feel free to ask about:
+• 🔑 **API Keys & Authentication** (\`/dev\`)
+• ⚡ **Rate Limit Caps & 429 Errors** (\`/tickets\`)
+• 🧠 **Models & 128k Reasoner** (\`kyro-coder-pro\`, \`kyro-ultra-70b\`)
+• 🛡️ **Human Support Escalation** (just type *"Talk to Human"*!)`;
+    }
+    // 2. Who are you / Capabilities
+    else if (lower.includes("who are you") || lower.includes("what can you do") || lower.includes("capabilities") || lower.includes("help me")) {
+      aiResponse = `I'm **Kyro AI Support Agent** — your 24/7 intelligent engineering assistant built directly into the platform! 🚀
+
+Here is what I can do for you right now:
+1. 🔑 **Manage API Keys**: Guide you through key creation, token rotation, and scope management under \`/dev\`.
+2. ⚡ **Solve Rate Limits**: Explain token bucket limits, burst quotas, and help request soft cap increases.
+3. 🧬 **Model Guidance**: Compare speeds, costs, and token contexts for \`kyro-coder-pro\`, \`kyro-ultra-70b\`, and \`kyro-flash-8b\`.
+4. 🗄️ **Database & Workflows**: Assist with PostgreSQL queries in \`/db\` or visual flow builders in \`/workflows\`.
+5. 🛡️ **Instant Escalation**: Transfer your conversation directly to a Human Admin in our Admin Panel at any time!
+
+What topic would you like to explore?`;
+    }
+    // 3. API Keys & Authentication
+    else if (lower.includes("api key") || lower.includes("token") || lower.includes("bearer") || lower.includes("auth")) {
+      aiResponse = `To create and manage API keys, head over to our Developer Portal at \`/dev\`! 🔑
+
+**Quick Technical Guide:**
+• **Key Format**: All live keys start with \`kyro_sk_live_...\`
+• **Authorization Header**: Pass your key in standard HTTP headers:
+  \`Authorization: Bearer kyro_sk_live_your_secret_key\`
+• **Scopes**: Assign read/write permissions (\`completions\`, \`admin\`, \`full\`).
+• **Free Tier Allowance**: 100,000 daily tokens included out of the box with zero setup fees!
+
+Need a custom scope or higher token cap? Reply *"Talk to Human"* to request an Enterprise key from our team.`;
+    }
+    // 4. Rate Limits & 429 Errors
+    else if (lower.includes("rate limit") || lower.includes("429") || lower.includes("quota") || lower.includes("throttl")) {
+      aiResponse = `Hit a 429 rate limit error? Don't worry, we've got you covered! ⚡
+
+**Kyro Rate Limit Tiers:**
+• 🆓 **Free Tier**: 20 Requests/Min (RPM) & 100,000 daily soft cap.
+• ⚡ **Pro Tier ($29/mo)**: 120 RPM & elevated burst concurrency limits.
+• 🏢 **Enterprise Tier**: 1,000+ RPM with custom dedicated SLAs.
+
+**Recommended Code Fix (Exponential Backoff):**
+\`\`\`js
+// Implement exponential backoff for 429 retries
+const delay = (ms) => new Promise(res => setTimeout(res, ms));
+async function fetchWithRetry(url, options, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    const res = await fetch(url, options);
+    if (res.status !== 429) return res;
+    await delay(Math.pow(2, i) * 1000); // 1s, 2s, 4s
+  }
+}
+\`\`\`
+
+Want our staff to manually double your burst rate cap right now? Reply *"Escalate to Admin"*!`;
+    }
+    // 5. Models & Reasoning
+    else if (lower.includes("model") || lower.includes("kyro-coder") || lower.includes("70b") || lower.includes("flash") || lower.includes("reasoner")) {
+      aiResponse = `Kyro hosts 4 specialized foundation models accessible via \`POST /v1/chat/completions\`: 🧠
+
+1. \`kyro-coder-pro\` (32B): Code specialist optimized for TypeScript, Python, SQL & React refactoring.
+2. \`kyro-ultra-70b\` (70B): Flagship reasoning model for deep architecture design & multi-step analysis.
+3. \`kyro-flash-8b\` (8B): Ultra-fast sub-100ms model for instant classification & autocomplete.
+4. \`kyro-reasoner-preview\`: Experimental 128,000-token context reasoning engine (test it live at \`/beta/reasoner\`!).
+
+**Example Curl Payload:**
+\`\`\`json
+{
+  "model": "kyro-coder-pro",
+  "messages": [{"role": "user", "content": "Write a TypeScript queue interface"}]
+}
+\`\`\``;
+    }
+    // 6. Database Explorer & SQL
+    else if (lower.includes("database") || lower.includes("db") || lower.includes("sql") || lower.includes("postgres") || lower.includes("redis")) {
+      aiResponse = `Explore your PostgreSQL database & Redis cache live in the browser at \`/db\`! 🗄️
+
+**Features Available:**
+• Execute raw SQL queries (\`SELECT * FROM users;\`, \`SELECT * FROM support_tickets;\`).
+• Inspect table schemas, primary keys, and index relationships.
+• Export query results in 1-click JSON or CSV files.
+
+Need help crafting a complex SQL query or index optimization? Let me know what data you're pulling!`;
+    }
+    // 7. Experimental Beta Lab
+    else if (lower.includes("beta") || lower.includes("lab") || lower.includes("experiment") || lower.includes("prototype")) {
+      aiResponse = `Check out our Admin Beta Laboratory at \`/beta\`! 🧪
+
+We currently have **8 active experimental modules**:
+• \`/beta/self-heal\`: Autonomous stack trace PR fixer.
+• \`/beta/reasoner\`: 128k context reasoning model.
+• \`/beta/telemetry\`: Real-time SSE token stream throughput.
+• \`/beta/router\`: Multi-cloud failover & cost router.
+• \`/beta/jailbreak\`: 50+ adversarial prompt injection scanner.
+• \`/beta/synthetic\`: Synthetic DB seeder & mock API generator.
+• \`/beta/changelog-gen\`: Git commit log release notes parser.
+• \`/beta/agent-cron\`: Autonomous AI task scheduler & cron engine.`;
+    }
+    // 8. Jokes & Fun Banter
+    else if (lower.includes("joke") || lower.includes("funny") || lower.includes("laugh")) {
+      aiResponse = `Here's a developer joke for you! 😄
+
+**Why do programmers prefer dark mode?**
+*Because light attracts bugs!* 🐛
+
+...and speaking of dark mode, notice our sleek new pure-black background across the Support Portal! How can I assist with your code or project setup today?`;
+    }
+    // 9. Conversational Fallback with Helpful Next Steps
+    else {
+      aiResponse = `I'd love to help you with that! 🌟
+
+While I'm continuously learning new platform features, here are the quickest ways we can get this solved:
+
+1. 📚 **Documentation & FAQs**: Check out the FAQs right below this chat window.
+2. 🔑 **Developer Portal**: Visit \`/dev\` for API keys, rate limits, and model endpoints.
+3. 👤 **Human Support**: If you'd like a real team member to review this, reply *"Talk to Human"* or *"Escalate"*, and I will instantly create a support ticket in our database for an admin!
+
+What would you like to do next?`;
     }
 
     return reply.send({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HelpCircle, MessageSquare, Search, Send, ChevronDown, ChevronUp, Bot, User, ShieldAlert, Sparkles, RefreshCw, Key, Zap, Headphones } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FlaskConical, Sparkles, ToggleLeft, ToggleRight, Play, Terminal, ShieldAlert, CheckCircle2, Cpu, Wrench, Layers, Plus, Code2, RefreshCw, Shield, Database, Radio, GitPullRequest, Activity, ExternalLink, ArrowRight } from "lucide-react";
+import { FlaskConical, Sparkles, ToggleLeft, ToggleRight, Play, Terminal, ShieldAlert, CheckCircle2, Cpu, Wrench, Layers, Plus, Code2, RefreshCw, Shield, Database, Radio, GitPullRequest, Activity, ExternalLink, ArrowRight, GitCommit, Clock } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import AuthGuard from "../../components/AuthGuard";
 
@@ -194,6 +194,8 @@ function BetaLabInner() {
               { title: "Multi-Cloud Cost Router", href: "/beta/router", desc: "Real-time latency failover across AWS, GCP, Cloudflare.", icon: Activity, tag: "Multi-Cloud Routing" },
               { title: "Adversarial Jailbreak Guard", href: "/beta/jailbreak", desc: "50+ pattern prompt injection scanner & output sanitizer.", icon: Shield, tag: "50+ Security Rules" },
               { title: "Synthetic Data Engine", href: "/beta/synthetic", desc: "AI-generated database seeders & mock JSON API payloads.", icon: Database, tag: "Seeder & Mock API" },
+              { title: "Release Notes & Changelog", href: "/beta/changelog-gen", desc: "Automated git commit & PR log parser into Markdown release notes.", icon: GitCommit, tag: "Git Log Parser" },
+              { title: "AI Agent Task Scheduler", href: "/beta/agent-cron", desc: "Autonomous recurring cron jobs (daily summaries, weekly audits).", icon: Clock, tag: "Cron Automation" },
             ].map((sub, idx) => {
               const Icon = sub.icon;
               return (

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FlaskConical, Sparkles, ToggleLeft, ToggleRight, Play, Terminal, ShieldAlert, CheckCircle2, Cpu, Wrench, Layers, Plus, Code2, RefreshCw, Shield, Database, Radio, GitPullRequest, Activity } from "lucide-react";
+import Link from "next/link";
+import { FlaskConical, Sparkles, ToggleLeft, ToggleRight, Play, Terminal, ShieldAlert, CheckCircle2, Cpu, Wrench, Layers, Plus, Code2, RefreshCw, Shield, Database, Radio, GitPullRequest, Activity, ExternalLink, ArrowRight } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import AuthGuard from "../../components/AuthGuard";
 
@@ -173,6 +174,50 @@ function BetaLabInner() {
                 <p className="text-[11px] text-muted line-clamp-1">{feat.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Dedicated Subpages Navigation Grid */}
+        <div className="bg-surface border border-border rounded-xl p-6 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="font-display text-lg font-bold text-text flex items-center gap-2">
+              <Layers className="text-accent" size={20} /> Dedicated Subpages & Full Standalone Modules
+            </h2>
+            <span className="text-xs font-mono text-muted">Admin Only Direct Access</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { title: "Self-Healing PR Fixer", href: "/beta/self-heal", desc: "Autonomous stack trace to patch analyzer & GitHub PR trigger.", icon: GitPullRequest, tag: "PR #481 Fixer" },
+              { title: "128k Reasoner Model", href: "/beta/reasoner", desc: "Extended context chain-of-thought architecture sandbox.", icon: Cpu, tag: "kyro-reasoner-preview" },
+              { title: "SSE Telemetry Stream", href: "/beta/telemetry", desc: "Live webhooks, token rates, and stream socket metrics.", icon: Radio, tag: "SSE Live Engine" },
+              { title: "Multi-Cloud Cost Router", href: "/beta/router", desc: "Real-time latency failover across AWS, GCP, Cloudflare.", icon: Activity, tag: "Multi-Cloud Routing" },
+              { title: "Adversarial Jailbreak Guard", href: "/beta/jailbreak", desc: "50+ pattern prompt injection scanner & output sanitizer.", icon: Shield, tag: "50+ Security Rules" },
+              { title: "Synthetic Data Engine", href: "/beta/synthetic", desc: "AI-generated database seeders & mock JSON API payloads.", icon: Database, tag: "Seeder & Mock API" },
+            ].map((sub, idx) => {
+              const Icon = sub.icon;
+              return (
+                <Link
+                  key={idx}
+                  href={sub.href}
+                  className="group bg-surface-raised/40 hover:bg-surface-raised border border-border hover:border-accent/50 p-4 rounded-xl transition-all space-y-2 flex flex-col justify-between"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-text group-hover:text-accent flex items-center gap-2">
+                        <Icon size={16} className="text-accent" /> {sub.title}
+                      </span>
+                      <ArrowRight size={14} className="text-muted group-hover:text-accent transition-transform group-hover:translate-x-1" />
+                    </div>
+                    <p className="text-xs text-muted line-clamp-2">{sub.desc}</p>
+                  </div>
+                  <div className="pt-2 flex items-center justify-between text-[11px] font-mono border-t border-border/50">
+                    <span className="bg-accent/10 text-accent px-2 py-0.5 rounded font-semibold">{sub.tag}</span>
+                    <span className="text-muted group-hover:text-text flex items-center gap-1">Open Page <ExternalLink size={10} /></span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
 

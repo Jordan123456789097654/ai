@@ -5,6 +5,9 @@ export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-1 mx-auto max-w-4xl px-6 py-24">
+        <div className="mb-6 flex items-center gap-3">
+          <img src="/logo.png" alt="Kyro AI Logo" className="h-16 md:h-20 w-auto object-contain" />
+        </div>
         <p className="font-mono text-sm text-signal mb-4">self-hosted · OpenAI-compatible</p>
         <h1 className="font-display text-5xl leading-tight mb-6">
           Run your own model.

@@ -72,6 +72,7 @@ export default function SiteNav() {
       ? [
           { href: "/admin", label: "Admin" },
           { href: "/code-audit", label: "Code Security" },
+          { href: "/beta", label: "Beta Lab" },
         ]
       : []),
   ];

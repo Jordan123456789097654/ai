@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { HelpCircle, MessageSquare, Search, Send, ChevronDown, ChevronUp, Bot, User, ShieldAlert, Sparkles, RefreshCw, Key, Zap, Headphones } from "lucide-react";
+import { HelpCircle, MessageSquare, Search, Send, ChevronDown, ChevronUp, Bot, User, ShieldAlert, Sparkles, RefreshCw, Key, Zap, Headphones, Star, CheckCircle2 } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
 type FAQItem = { question: string; answer: string; category: string };
@@ -46,6 +46,22 @@ export default function SupportPage() {
   const [userInput, setUserInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [emailInput, setEmailInput] = useState("user@example.com");
+
+  // CSAT Rating State
+  const [csatRating, setCsatRating] = useState<number>(5);
+  const [csatFeedback, setCsatFeedback] = useState("");
+  const [csatSubmitted, setCsatSubmitted] = useState(false);
+
+  async function submitCsat(ticketId: string) {
+    if (!ticketId || csatSubmitted) return;
+    try {
+      await apiFetch(`/v1/tickets/${ticketId}/csat`, {
+        method: "POST",
+        body: JSON.stringify({ rating: csatRating, feedback: csatFeedback }),
+      });
+      setCsatSubmitted(true);
+    } catch {}
+  }
 
   // Load chat history from localStorage on initial page render
   useEffect(() => {
@@ -298,8 +314,65 @@ export default function SupportPage() {
                 <p className="text-sm font-sans whitespace-pre-wrap leading-relaxed">{msg.text}</p>
 
                 {msg.escalated && (
-                  <div className="mt-3 pt-2.5 border-t border-amber-500/30 text-xs font-mono text-amber-400 flex items-center gap-2 font-bold">
-                    <ShieldAlert size={16} /> Real Support Ticket Created in PostgreSQL Database (#{msg.ticketId || "TCK-AUTO"}) & Escalated to Admin Panel!
+                  <div className="mt-3 pt-2.5 border-t border-amber-500/30 text-xs font-mono text-amber-400 space-y-3">
+                    <div className="flex items-center gap-2 font-bold">
+                      <ShieldAlert size={16} /> Real Support Ticket Created in Database (#{msg.ticketId || "TCK-AUTO"}) & Escalated to Admin Panel!
+                    </div>
+
+                    {/* CSAT 1-5 Star Customer Satisfaction Survey */}
+                    <div className="bg-[#0B0D14]/90 border border-accent/30 rounded-xl p-3.5 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-accent flex items-center gap-1.5">
+                          <Star className="fill-accent text-accent" size={14} /> Rate Your Support Experience (CSAT)
+                        </span>
+                        {csatSubmitted && (
+                          <span className="text-success text-[10px] font-bold flex items-center gap-1">
+                            <CheckCircle2 size={10} /> Rating Submitted!
+                          </span>
+                        )}
+                      </div>
+
+                      {!csatSubmitted ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => setCsatRating(star)}
+                                className={`p-1 rounded transition-all ${
+                                  csatRating >= star ? "text-accent" : "text-gray-600"
+                                }`}
+                              >
+                                <Star className={csatRating >= star ? "fill-accent" : ""} size={18} />
+                              </button>
+                            ))}
+                            <span className="text-[11px] font-mono text-gray-300 font-bold ml-2">
+                              {csatRating} / 5 Stars
+                            </span>
+                          </div>
+
+                          <input
+                            type="text"
+                            value={csatFeedback}
+                            onChange={(e) => setCsatFeedback(e.target.value)}
+                            placeholder="Optional feedback for support team..."
+                            className="w-full bg-[#161B28] border border-[#252D40] rounded px-3 py-1.5 text-xs text-white outline-none focus:border-accent font-mono"
+                          />
+
+                          <button
+                            onClick={() => submitCsat(msg.ticketId || "TCK-8921")}
+                            className="w-full py-1.5 bg-accent text-ink rounded font-semibold text-xs hover:opacity-90 transition-opacity font-mono"
+                          >
+                            Submit Support Feedback
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-gray-300 italic font-mono">
+                          Thank you for your rating of {csatRating} / 5 stars! Our staff will review your feedback.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

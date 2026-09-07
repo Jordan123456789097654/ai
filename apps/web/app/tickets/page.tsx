@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Inbox, CheckCircle2, AlertTriangle, MessageSquare, Send, Sparkles, Sliders, Plus, Tag, ShieldCheck, UserCheck, RefreshCw, Bot, User, CornerDownLeft } from "lucide-react";
+import { Inbox, CheckCircle2, AlertTriangle, MessageSquare, Send, Sparkles, Sliders, Plus, Tag, ShieldCheck, UserCheck, RefreshCw, Bot, User, CornerDownLeft, Clock, Star, FileText, BookmarkPlus } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
 type MessageItem = {
@@ -10,6 +10,13 @@ type MessageItem = {
   time: string;
   role?: "staff" | "user" | "ai";
   escalated?: boolean;
+};
+
+type SlaInfo = {
+  slaMinutes: number;
+  deadlineIso: string;
+  status: "ON_TRACK" | "BREACHED" | "RESOLVED";
+  remainingMins: number;
 };
 
 type Ticket = {
@@ -25,21 +32,39 @@ type Ticket = {
   aiDraftResponse?: string;
   adminReply?: string;
   fullChatHistory?: string;
+  csatRating?: number;
+  csatFeedback?: string;
+  slaInfo?: SlaInfo;
   createdAt: string;
+};
+
+type CannedSnippet = {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
 };
 
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [snippets, setSnippets] = useState<CannedSnippet[]>([]);
   const [autoSendEnabled, setAutoSendEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Staff Messaging State
+  // Staff Messaging & AI Generator State
   const [staffInput, setStaffInput] = useState("");
   const [isSendingStaff, setIsSendingStaff] = useState(false);
+  const [isGeneratingAiStaff, setIsGeneratingAiStaff] = useState(false);
   const [chatThread, setChatThread] = useState<MessageItem[]>([]);
 
-  // New Ticket Simulation Modal State
+  // Snippet Manager Modal
+  const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
+  const [newSnippetTitle, setNewSnippetTitle] = useState("");
+  const [newSnippetCategory, setNewSnippetCategory] = useState("General");
+  const [newSnippetContent, setNewSnippetContent] = useState("");
+
+  // Inbound Ticket Simulation Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newSubject, setNewSubject] = useState("");
@@ -98,6 +123,9 @@ export default function TicketsPage() {
       if (data.settings) {
         setAutoSendEnabled(data.settings.autoSendEnabled);
       }
+      if (data.snippets) {
+        setSnippets(data.snippets);
+      }
     } catch {
       // Fallback
     } finally {
@@ -145,18 +173,58 @@ export default function TicketsPage() {
     }
   }
 
-  async function approveAiResponse(ticketId: string) {
+  async function handleAiGenerateStaffReply() {
+    if (!selectedTicket || isGeneratingAiStaff) return;
+    setIsGeneratingAiStaff(true);
     try {
-      await apiFetch(`/v1/tickets/${ticketId}/approve`, { method: "POST" });
-      setTickets((prev) =>
-        prev.map((t) => (t.id === ticketId ? { ...t, status: "Resolved" } : t))
-      );
-      if (selectedTicket?.id === ticketId) {
-        setSelectedTicket((prev) => (prev ? { ...prev, status: "Resolved" } : null));
+      const ticketId = selectedTicket.id || selectedTicket.ticketNumber || "";
+      const res = await apiFetch(`/v1/tickets/${ticketId}/ai-generate-reply`, {
+        method: "POST",
+        body: JSON.stringify({ staffNote: "Verified customer account tier" }),
+      });
+      if (res.replyText) {
+        setStaffInput(res.replyText);
       }
     } catch (e: any) {
-      alert(`Error approving response: ${e.message}`);
+      alert(`Error generating AI staff response: ${e.message}`);
+    } finally {
+      setIsGeneratingAiStaff(false);
     }
+  }
+
+  function applyCannedSnippet(snippet: CannedSnippet) {
+    if (!selectedTicket) return;
+    const customerName = (selectedTicket.customerEmail || "Customer").split("@")[0];
+    const ticketIdStr = selectedTicket.ticketNumber || selectedTicket.id;
+    const accountTier = selectedTicket.customerEmail.includes("acme") ? "Enterprise" : "Pro";
+
+    let text = snippet.content;
+    text = text.replace(/\{customer_name\}/g, customerName);
+    text = text.replace(/\{ticket_id\}/g, ticketIdStr);
+    text = text.replace(/\{account_tier\}/g, accountTier);
+
+    setStaffInput(text);
+  }
+
+  async function handleCreateSnippet(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newSnippetTitle || !newSnippetContent) return;
+    try {
+      const res = await apiFetch("/v1/tickets/snippets", {
+        method: "POST",
+        body: JSON.stringify({
+          title: newSnippetTitle,
+          category: newSnippetCategory,
+          content: newSnippetContent,
+        }),
+      });
+      if (res.snippet) {
+        setSnippets((prev) => [...prev, res.snippet]);
+        setIsSnippetModalOpen(false);
+        setNewSnippetTitle("");
+        setNewSnippetContent("");
+      }
+    } catch {}
   }
 
   async function handleCreateTicket(e: React.FormEvent) {
@@ -188,14 +256,21 @@ export default function TicketsPage() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-border pb-6 gap-4">
           <div>
             <h1 className="font-display text-2xl md:text-3xl font-bold flex items-center gap-3">
-              <Inbox className="text-accent" size={30} /> Support Desk & Staff Messaging Portal
+              <Inbox className="text-accent" size={30} /> Support Desk & SLA Escalation Matrix
             </h1>
             <p className="text-sm text-muted mt-1">
-              Staff-end support portal: respond directly to customer inquiries, review AI drafts, and manage live ticket threads.
+              Staff support portal with SLA countdown timers, Canned Snippet Manager, AI Staff Response writer, and CSAT ratings.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSnippetModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-surface-raised border border-border hover:border-accent text-text rounded-lg text-xs font-mono font-semibold transition-all"
+            >
+              <BookmarkPlus size={14} className="text-accent" /> Manage Canned Snippets ({snippets.length})
+            </button>
+
             <button
               onClick={loadTickets}
               className="p-2 bg-surface-raised border border-border hover:border-accent text-muted hover:text-text rounded-lg transition-all"
@@ -208,43 +283,47 @@ export default function TicketsPage() {
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-accent text-ink rounded-lg font-semibold text-xs hover:opacity-90 transition-opacity"
             >
-              <Plus size={14} /> Ingest Inbound Ticket
+              <Plus size={14} /> Ingest Ticket
             </button>
           </div>
         </div>
 
-        {/* Workflow Settings Banner */}
-        <div className="bg-surface border border-border rounded-xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-accent/10 border border-accent/30 rounded-lg text-accent">
-              <Sliders size={20} />
+        {/* SLA Matrix Summary Banner */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between shadow-sm">
+            <div className="space-y-1">
+              <span className="text-[11px] font-mono text-muted uppercase font-semibold">Urgent P1 SLA (1 Hour)</span>
+              <div className="text-xl font-bold text-danger font-display flex items-center gap-2">
+                <Clock size={18} /> {tickets.filter((t) => t.sentiment === "Urgent" && t.status !== "Resolved").length} Active Tickets
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-sm text-text flex items-center gap-2">
-                Staff Workflow Mode: <span className="text-accent font-mono">{autoSendEnabled ? "Auto-Send AI Mode" : "Staff Review & Reply Mode"}</span>
-              </h3>
-              <p className="text-xs text-muted">
-                {autoSendEnabled
-                  ? "AI automatically responds when confidence exceeds threshold."
-                  : "Staff can view full conversation threads, type custom replies, or dispatch AI drafts."}
-              </p>
-            </div>
+            <span className="bg-danger/10 text-danger border border-danger/30 text-[10px] font-mono px-2 py-1 rounded font-bold">
+              1-HR SLA
+            </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-muted">Auto-Send AI</span>
-            <button
-              onClick={() => toggleWorkflow(!autoSendEnabled)}
-              className={`w-12 h-6 rounded-full p-1 transition-colors ${
-                autoSendEnabled ? "bg-accent" : "bg-surface-raised border border-border"
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-ink transition-transform ${
-                  autoSendEnabled ? "translate-x-6" : "translate-x-0"
-                }`}
-              />
-            </button>
+          <div className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between shadow-sm">
+            <div className="space-y-1">
+              <span className="text-[11px] font-mono text-muted uppercase font-semibold">High P2 SLA (4 Hours)</span>
+              <div className="text-xl font-bold text-warning font-display flex items-center gap-2">
+                <Clock size={18} /> {tickets.filter((t) => (t.sentiment === "High" || t.category === "Technical Bug") && t.status !== "Resolved").length} Active Tickets
+              </div>
+            </div>
+            <span className="bg-warning/10 text-warning border border-warning/30 text-[10px] font-mono px-2 py-1 rounded font-bold">
+              4-HR SLA
+            </span>
+          </div>
+
+          <div className="bg-surface border border-border rounded-xl p-4 flex items-center justify-between shadow-sm">
+            <div className="space-y-1">
+              <span className="text-[11px] font-mono text-muted uppercase font-semibold">Normal SLA (24 Hours)</span>
+              <div className="text-xl font-bold text-success font-display flex items-center gap-2">
+                <CheckCircle2 size={18} /> {tickets.filter((t) => t.status === "Resolved").length} Resolved Tickets
+              </div>
+            </div>
+            <span className="bg-success/10 text-success border border-success/30 text-[10px] font-mono px-2 py-1 rounded font-bold">
+              24-HR SLA
+            </span>
           </div>
         </div>
 
@@ -259,55 +338,67 @@ export default function TicketsPage() {
               <span className="text-[10px] font-mono text-accent">Click to inspect</span>
             </div>
 
-            <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
-              {tickets.map((t) => (
-                <div
-                  key={t.id}
-                  onClick={() => setSelectedTicket(t)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2 ${
-                    selectedTicket?.id === t.id
-                      ? "border-accent bg-accent/5 shadow-md"
-                      : "border-border bg-surface-raised/40 hover:border-accent/40"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-accent font-bold">{t.id}</span>
-                    <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold ${
-                        t.status === "Resolved"
-                          ? "bg-success/10 text-success border-success/30"
-                          : t.status === "Staff Replied"
-                          ? "bg-accent/10 text-accent border-accent/30"
-                          : "bg-warning/10 text-warning border-warning/30"
-                      }`}
-                    >
-                      {t.status}
-                    </span>
-                  </div>
+            <div className="space-y-2 max-h-[calc(100vh-340px)] overflow-y-auto pr-1">
+              {tickets.map((t) => {
+                const isBreached = t.slaInfo?.status === "BREACHED";
+                const isUrgent = t.sentiment === "Urgent";
 
-                  <h3 className="font-semibold text-sm text-text line-clamp-1">{t.subject}</h3>
-                  <p className="text-xs text-muted line-clamp-2">{t.body}</p>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono bg-surface border border-border px-2 py-0.5 rounded text-muted flex items-center gap-1">
-                        <Tag size={10} /> {t.category}
-                      </span>
-                      <span
-                        className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                          t.sentiment === "Urgent"
-                            ? "bg-danger/10 text-danger border-danger/30"
-                            : "bg-surface border border-border text-muted"
-                        }`}
-                      >
-                        {t.sentiment}
-                      </span>
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => setSelectedTicket(t)}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                      selectedTicket?.id === t.id
+                        ? "border-accent bg-accent/5 shadow-md"
+                        : "border-border bg-surface-raised/40 hover:border-accent/40"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs text-accent font-bold">{t.id}</span>
+                      <div className="flex items-center gap-1.5">
+                        {isBreached && (
+                          <span className="text-[10px] font-mono bg-danger/20 text-danger border border-danger/40 px-2 py-0.5 rounded font-bold animate-pulse">
+                            ⚠️ BREACHED
+                          </span>
+                        )}
+                        <span
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded border font-semibold ${
+                            t.status === "Resolved"
+                              ? "bg-success/10 text-success border-success/30"
+                              : t.status === "Staff Replied"
+                              ? "bg-accent/10 text-accent border-accent/30"
+                              : "bg-warning/10 text-warning border-warning/30"
+                          }`}
+                        >
+                          {t.status}
+                        </span>
+                      </div>
                     </div>
 
-                    <span className="text-[10px] font-mono text-muted">{t.customerEmail}</span>
+                    <h3 className="font-semibold text-sm text-text line-clamp-1">{t.subject}</h3>
+                    <p className="text-xs text-muted line-clamp-2">{t.body}</p>
+
+                    <div className="flex items-center justify-between pt-1 text-[10px] font-mono">
+                      <div className="flex items-center gap-1.5">
+                        <span className="bg-surface border border-border px-2 py-0.5 rounded text-muted flex items-center gap-1">
+                          <Tag size={10} /> {t.category}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded border ${
+                            isUrgent ? "bg-danger/10 text-danger border-danger/30 font-bold" : "bg-surface border border-border text-muted"
+                          }`}
+                        >
+                          {t.sentiment}
+                        </span>
+                      </div>
+
+                      <span className="text-muted flex items-center gap-1">
+                        <Clock size={10} /> SLA: {isUrgent ? "1h" : "4h"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -322,15 +413,31 @@ export default function TicketsPage() {
                     <span className="text-xs text-muted font-mono">{new Date(selectedTicket.createdAt).toLocaleString()}</span>
                   </div>
                   <h2 className="font-display text-xl font-bold text-text">{selectedTicket.subject}</h2>
-                  <div className="text-xs font-mono text-muted flex items-center gap-2">
+                  <div className="flex items-center justify-between text-xs font-mono text-muted">
                     <span>Customer: <strong className="text-text">{selectedTicket.customerEmail}</strong></span>
-                    <span>•</span>
-                    <span>Status: <strong className="text-accent">{selectedTicket.status}</strong></span>
+                    <span className="flex items-center gap-1">
+                      Status: <strong className="text-accent">{selectedTicket.status}</strong>
+                    </span>
                   </div>
                 </div>
 
+                {/* CSAT Customer Rating Badge if Present */}
+                {selectedTicket.csatRating && (
+                  <div className="bg-success/10 border border-success/30 rounded-xl p-4 space-y-1 font-mono text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-success flex items-center gap-1.5">
+                        <Star className="fill-success text-success" size={16} /> Customer CSAT Score: {selectedTicket.csatRating} / 5 Stars
+                      </span>
+                      <span className="text-[10px] text-muted">Verified Feedback</span>
+                    </div>
+                    {selectedTicket.csatFeedback && (
+                      <p className="text-text/90 italic pt-1 text-xs">"{selectedTicket.csatFeedback}"</p>
+                    )}
+                  </div>
+                )}
+
                 {/* Conversation Thread Messages Display */}
-                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                   <span className="text-[11px] font-mono text-muted uppercase font-semibold">Live Ticket Thread ({chatThread.length} Messages)</span>
 
                   {chatThread.map((msg, idx) => {
@@ -363,23 +470,35 @@ export default function TicketsPage() {
                   })}
                 </div>
 
-                {/* AI Suggestions Quick Insert Banner */}
-                {selectedTicket.aiDraftResponse && (
-                  <div className="bg-accent/5 border border-accent/30 rounded-lg p-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-accent font-bold flex items-center gap-1.5">
-                        <Sparkles size={14} /> Kyro AI Drafted Response ({Math.round((selectedTicket.aiConfidence || 0.85) * 100)}% Confidence)
-                      </span>
-                      <button
-                        onClick={() => setStaffInput(selectedTicket.aiDraftResponse || "")}
-                        className="text-[11px] font-mono text-accent hover:underline flex items-center gap-1 font-semibold"
-                      >
-                        <CornerDownLeft size={12} /> Use Draft in Reply
-                      </button>
-                    </div>
-                    <p className="text-muted line-clamp-2 font-mono text-[11px]">{selectedTicket.aiDraftResponse}</p>
+                {/* Canned Snippets Toolbar & AI Writer Action */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-text flex items-center gap-1.5">
+                      <BookmarkPlus size={14} className="text-accent" /> Canned Response Templates
+                    </span>
+                    <button
+                      onClick={handleAiGenerateStaffReply}
+                      disabled={isGeneratingAiStaff}
+                      className="px-3 py-1 bg-accent/10 border border-accent/30 text-accent rounded-lg text-xs font-mono font-semibold flex items-center gap-1.5 hover:bg-accent/20 transition-all"
+                    >
+                      <Sparkles size={12} className={isGeneratingAiStaff ? "animate-spin" : ""} />
+                      {isGeneratingAiStaff ? "AI Writing Staff Response..." : "⚡ AI Write Staff Response"}
+                    </button>
                   </div>
-                )}
+
+                  <div className="flex flex-wrap gap-2">
+                    {snippets.map((snp) => (
+                      <button
+                        key={snp.id}
+                        onClick={() => applyCannedSnippet(snp)}
+                        className="text-[11px] font-mono bg-surface-raised border border-border hover:border-accent px-2.5 py-1 rounded-lg text-muted hover:text-text transition-all"
+                        title={snp.content}
+                      >
+                        + {snp.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Staff Reply Console */}
                 <div className="bg-surface-raised border border-border rounded-xl p-4 space-y-3">
@@ -390,34 +509,17 @@ export default function TicketsPage() {
                     <span className="text-[10px] font-mono text-muted">Sending as Staff Support</span>
                   </div>
 
-                  {/* Preset Quick Tags */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      "API rate limit soft cap increased manually for your account.",
-                      "We are investigating this issue with our core engineering team.",
-                      "Issue resolved. Please re-test your requests and let us know!",
-                    ].map((preset, pIdx) => (
-                      <button
-                        key={pIdx}
-                        onClick={() => setStaffInput(preset)}
-                        className="text-[10px] font-mono bg-surface border border-border hover:border-accent/50 px-2 py-1 rounded text-muted hover:text-text transition-all truncate max-w-[220px]"
-                      >
-                        + {preset}
-                      </button>
-                    ))}
-                  </div>
-
                   <textarea
-                    rows={3}
+                    rows={4}
                     value={staffInput}
                     onChange={(e) => setStaffInput(e.target.value)}
-                    placeholder="Type official staff response to the customer here..."
-                    className="w-full bg-bg border border-border rounded-lg p-3 text-xs text-text font-mono outline-none focus:border-success"
+                    placeholder="Type official staff response or use AI Write Staff Response..."
+                    className="w-full bg-bg border border-border rounded-lg p-3 text-xs text-text font-mono outline-none focus:border-success leading-relaxed"
                   />
 
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-[11px] font-mono text-muted flex items-center gap-1">
-                      <ShieldCheck size={12} className="text-success" /> End-to-End Encrypted Customer Dispatch
+                      <ShieldCheck size={12} className="text-success" /> Encrypted Customer Dispatch
                     </span>
 
                     <div className="flex items-center gap-2">
@@ -442,12 +544,74 @@ export default function TicketsPage() {
               </div>
             ) : (
               <div className="h-64 flex items-center justify-center text-muted text-sm font-mono">
-                Select a ticket from the queue to open the Staff Reply Console.
+                Select a ticket from the queue to inspect SLA metrics and Staff Reply Console.
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Canned Snippet Creator Modal */}
+      {isSnippetModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <form onSubmit={handleCreateSnippet} className="bg-surface border border-border rounded-xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <h2 className="font-display text-lg font-bold text-text flex items-center gap-2">
+              <BookmarkPlus className="text-accent" size={20} /> Create New Canned Response Template
+            </h2>
+
+            <div>
+              <label className="block text-xs font-mono text-muted mb-1">Snippet Title</label>
+              <input
+                type="text"
+                required
+                value={newSnippetTitle}
+                onChange={(e) => setNewSnippetTitle(e.target.value)}
+                placeholder="e.g., API Quota Reset"
+                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-xs font-mono text-text outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono text-muted mb-1">Category</label>
+              <input
+                type="text"
+                value={newSnippetCategory}
+                onChange={(e) => setNewSnippetCategory(e.target.value)}
+                placeholder="e.g., Billing, Rate Limits"
+                className="w-full bg-surface-raised border border-border rounded-lg px-3 py-2 text-xs font-mono text-text outline-none focus:border-accent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono text-muted mb-1">Template Content (Use {'{customer_name}'}, {'{ticket_id}'}, {'{account_tier}'})</label>
+              <textarea
+                rows={4}
+                required
+                value={newSnippetContent}
+                onChange={(e) => setNewSnippetContent(e.target.value)}
+                placeholder="Hello {customer_name}, regarding ticket #{ticket_id}..."
+                className="w-full bg-surface-raised border border-border rounded-lg p-3 text-xs font-mono text-text outline-none focus:border-accent"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsSnippetModalOpen(false)}
+                className="px-4 py-2 border border-border rounded-lg text-xs text-muted hover:text-text font-mono"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-accent text-ink rounded-lg font-semibold text-xs hover:opacity-90 transition-opacity font-mono"
+              >
+                Save Template
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Inbound Ticket Simulation Modal */}
       {isModalOpen && (

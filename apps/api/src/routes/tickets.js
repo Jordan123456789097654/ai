@@ -15,6 +15,10 @@ let memoryTicketsFallback = [
     category: "Technical Bug",
     aiConfidence: 0.72,
     aiDraftResponse: "Hello Sarah,\n\nThanks for reaching out! Your current API soft cap is set to 100,000 daily tokens. To accommodate high-concurrency batch jobs, you can configure your soft cap threshold in the Developer Portal under `/dev` or upgrade to an Enterprise Tier key for elevated concurrency quotas.\n\nLet us know if you would like our support team to double your burst rate limit manually!\n\nBest regards,\nKyro AI Support Team",
+    fullChatHistory: JSON.stringify([
+      { sender: "You", text: "Hi team, we are hitting 429 rate limits when executing our nightly batch processing script with 50 parallel connections. How can we increase our soft limit?", time: "10:14 AM" },
+      { sender: "AI Agent", text: "I have registered your inquiry regarding API rate limits. Escalating to Admin Support.", time: "10:15 AM", escalated: true, ticketId: "TCK-8921" }
+    ]),
     createdAt: new Date(Date.now() - 3600000).toISOString(),
   },
 ];
@@ -155,6 +159,98 @@ export default async function ticketsRoute(fastify) {
       memoryTicketsFallback.unshift(newTicket);
       return reply.send({ success: true, ticket: newTicket });
     }
+  });
+
+  // Get single ticket details with parsed chat thread
+  fastify.get("/v1/tickets/:id", async (request, reply) => {
+    const { id } = request.params;
+    let ticket = null;
+    try {
+      ticket = await prisma.supportTicket.findFirst({
+        where: { OR: [{ id }, { ticketNumber: id }] },
+      });
+    } catch {}
+
+    if (!ticket) {
+      ticket = memoryTicketsFallback.find((t) => t.id === id || t.ticketNumber === id);
+    }
+
+    if (!ticket) {
+      return reply.status(404).send({ error: "Ticket not found" });
+    }
+
+    let parsedThread = [];
+    try {
+      if (ticket.fullChatHistory) parsedThread = JSON.parse(ticket.fullChatHistory);
+    } catch {}
+
+    return reply.send({ success: true, ticket: { ...ticket, parsedThread } });
+  });
+
+  // Staff Reply Endpoint: Staff sends message to customer on a support ticket
+  fastify.post("/v1/tickets/:id/reply", async (request, reply) => {
+    const { id } = request.params;
+    const { message, staffName = "Staff Support", markResolved = false } = request.body || {};
+
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return reply.status(400).send({ error: "Reply message content is required." });
+    }
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const newStaffMsg = {
+      sender: staffName,
+      text: message.trim(),
+      time: timeStr,
+      role: "staff",
+      timestamp: new Date().toISOString(),
+    };
+
+    const nextStatus = markResolved ? "Resolved" : "Staff Replied";
+
+    // 1. Try DB update
+    try {
+      const existing = await prisma.supportTicket.findFirst({
+        where: { OR: [{ id }, { ticketNumber: id }] },
+      });
+
+      if (existing) {
+        let historyArray = [];
+        try {
+          if (existing.fullChatHistory) historyArray = JSON.parse(existing.fullChatHistory);
+        } catch {}
+
+        historyArray.push(newStaffMsg);
+
+        const updated = await prisma.supportTicket.update({
+          where: { id: existing.id },
+          data: {
+            adminReply: message.trim(),
+            fullChatHistory: JSON.stringify(historyArray),
+            status: nextStatus,
+          },
+        });
+
+        return reply.send({ success: true, ticket: updated, newMessage: newStaffMsg });
+      }
+    } catch {}
+
+    // 2. Fallback in-memory update
+    const memTicket = memoryTicketsFallback.find((t) => t.id === id || t.ticketNumber === id);
+    if (memTicket) {
+      let historyArray = [];
+      try {
+        if (memTicket.fullChatHistory) historyArray = JSON.parse(memTicket.fullChatHistory);
+      } catch {}
+
+      historyArray.push(newStaffMsg);
+      memTicket.adminReply = message.trim();
+      memTicket.fullChatHistory = JSON.stringify(historyArray);
+      memTicket.status = nextStatus;
+
+      return reply.send({ success: true, ticket: memTicket, newMessage: newStaffMsg });
+    }
+
+    return reply.status(404).send({ error: "Ticket not found." });
   });
 
   // Approve & Reply ticket in Database

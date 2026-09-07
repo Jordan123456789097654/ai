@@ -78,6 +78,44 @@ export default function SupportPage() {
     } catch {}
   }, [emailInput]);
 
+  // Poll for Staff replies on escalated tickets every 5 seconds
+  useEffect(() => {
+    const escalatedMsg = [...chatMessages].reverse().find((m) => m.ticketId);
+    if (!escalatedMsg?.ticketId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiFetch(`/v1/tickets/${escalatedMsg.ticketId}`);
+        if (res.ticket?.parsedThread && Array.isArray(res.ticket.parsedThread)) {
+          const staffMsgs = res.ticket.parsedThread.filter((m: any) => m.role === "staff" || m.sender.includes("Staff"));
+          if (staffMsgs.length > 0) {
+            setChatMessages((prev) => {
+              const existingTexts = new Set(prev.map((m) => m.text));
+              const newItems: ChatMessage[] = [];
+
+              for (const sm of staffMsgs) {
+                if (!existingTexts.has(sm.text)) {
+                  newItems.push({
+                    sender: "AI Agent", // Displays cleanly in chat as Staff Support
+                    text: `👤 [Staff Support Reply]: ${sm.text}`,
+                    time: sm.time || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  });
+                }
+              }
+
+              if (newItems.length > 0) {
+                return [...prev, ...newItems];
+              }
+              return prev;
+            });
+          }
+        }
+      } catch {}
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [chatMessages]);
+
   async function handleSendAiChat(textToSend?: string) {
     const query = (textToSend || userInput).trim();
     if (!query || isTyping) return;

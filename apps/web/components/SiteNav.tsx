@@ -14,6 +14,7 @@ const PUBLIC_LINKS = [
   { href: "/docs", label: "Docs" },
   { href: "/status", label: "Status" },
   { href: "/support", label: "Support" },
+  { href: "/sandbox", label: "Sandbox" },
 ];
 
 // Requires a signed-in account.

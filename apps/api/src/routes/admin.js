@@ -2,6 +2,7 @@ import { requireSession, requireAdmin } from "../middleware/auth.js";
 import { getActiveConfig, setActiveConfig } from "../services/systemConfigService.js";
 import { revokeKey } from "../services/apiKeyService.js";
 import { prisma } from "../lib/prisma.js";
+import { getKeyPoolStats } from "../services/inferenceClient.js";
 
 export default async function adminRoutes(fastify) {
   fastify.addHook("preHandler", requireSession);
@@ -109,6 +110,19 @@ export default async function adminRoutes(fastify) {
         (usageAgg._sum.promptTokens || 0) + (usageAgg._sum.completionTokens || 0),
       requestVolume24h: requestCount24h,
       errorRate24h: requestCount24h ? errorCount24h / requestCount24h : 0,
+    };
+  });
+
+  // ---- Groq Key Pool Diagnostics ----
+
+  fastify.get("/admin/groq-pool", { schema: { tags: ["admin"] } }, async () => {
+    const stats = getKeyPoolStats();
+    return {
+      ...stats,
+      message:
+        stats.totalKeys === 0
+          ? "No Groq API keys configured. Set GROQ_API_KEYS or INFERENCE_API_KEY."
+          : `Pool healthy — ${stats.totalKeys} key(s) available with round-robin rotation.`,
     };
   });
 

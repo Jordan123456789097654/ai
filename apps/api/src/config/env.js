@@ -1,5 +1,25 @@
 import "dotenv/config";
 
+// ── Groq Multi-Key Pool ────────────────────────────────────────────────────
+// Accepts GROQ_API_KEYS as a comma-separated list of keys, falling back to
+// the legacy single-key INFERENCE_API_KEY.  Keys are deduplicated and
+// round-robined across every inference request so each key's per-minute
+// rate-limit budget is shared evenly across your key pool.
+function parseGroqKeyPool() {
+  const multiKeyVar = process.env.GROQ_API_KEYS || "";
+  const singleKey = process.env.INFERENCE_API_KEY || "";
+
+  const poolFromMulti = multiKeyVar
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+
+  const pool = poolFromMulti.length > 0 ? poolFromMulti : singleKey ? [singleKey] : [];
+
+  // Deduplicate
+  return [...new Set(pool)];
+}
+
 export const env = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || "development",
@@ -13,7 +33,12 @@ export const env = {
 
   inferenceBaseUrl: process.env.INFERENCE_BASE_URL || "http://localhost:8000/v1",
   inferenceModel: process.env.INFERENCE_MODEL || "mistralai/Mistral-7B-Instruct-v0.3",
+
+  // Single key kept for backwards compatibility (used if GROQ_API_KEYS not set)
   inferenceApiKey: process.env.INFERENCE_API_KEY || "",
+
+  // Multi-key pool — resolved at startup
+  groqKeyPool: parseGroqKeyPool(),
 
   apiKeyPrefix: process.env.API_KEY_PREFIX || "kyro_sk_live_",
 

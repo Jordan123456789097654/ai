@@ -55,19 +55,22 @@ function AdminPageInner() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userUpdating, setUserUpdating] = useState<Record<string, boolean>>({});
+  const [groqPool, setGroqPool] = useState<{ totalKeys: number; currentIndex: number; rotationStrategy: string; rateLimitRetry: boolean; message: string } | null>(null);
 
   async function loadAdminData() {
     setError(null);
     try {
-      const [cfg, ana, usrData, ticketData] = await Promise.all([
+      const [cfg, ana, usrData, ticketData, poolData] = await Promise.all([
         apiFetch("/admin/config"),
         apiFetch("/admin/analytics"),
         apiFetch("/admin/users"),
         apiFetch("/admin/tickets").catch(() => ({ tickets: [] })),
+        apiFetch("/admin/groq-pool").catch(() => null),
       ]);
       setConfig(cfg);
       setAnalytics(ana);
       setUsers(usrData.users || []);
+      if (poolData) setGroqPool(poolData);
 
       const defaultTickets: SupportTicket[] = [
         {
@@ -445,6 +448,73 @@ function AdminPageInner() {
             <p className="text-xs text-muted font-mono">Provider: Groq LPU (llama-3.1-8b-instant)</p>
             <p className="text-sm font-mono text-text font-bold pt-1">680.0 tok/s (62ms)</p>
           </div>
+        </div>
+      </section>
+
+      {/* Groq API Key Pool Manager */}
+      <section className="border border-border rounded-lg bg-surface p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="font-display text-xl">Groq API Key Pool</h2>
+            <p className="text-muted text-xs">Round-robin multi-key rotation with automatic 429 retry failover.</p>
+          </div>
+          <span className={`text-xs font-mono px-2.5 py-1 rounded border ${
+            groqPool && groqPool.totalKeys > 1
+              ? "bg-success/10 border-success/40 text-success"
+              : groqPool && groqPool.totalKeys === 1
+              ? "bg-accent/10 border-accent/40 text-accent"
+              : "bg-warn/10 border-warn/40 text-warn"
+          }`}>
+            {groqPool ? `${groqPool.totalKeys} Key${groqPool.totalKeys !== 1 ? "s" : ""} Active` : "Loading..."}
+          </span>
+        </div>
+
+        {groqPool ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-surface-raised border border-border rounded p-4 space-y-1">
+              <p className="text-xs text-muted font-mono uppercase tracking-wider">Total Keys in Pool</p>
+              <p className="text-2xl font-bold font-mono text-text">{groqPool.totalKeys}</p>
+              <p className="text-xs text-muted">
+                {groqPool.totalKeys === 0
+                  ? "⚠️ No keys configured"
+                  : groqPool.totalKeys === 1
+                  ? "ℹ️ Single key — add more via GROQ_API_KEYS"
+                  : `✅ Load distributed across ${groqPool.totalKeys} keys`}
+              </p>
+            </div>
+
+            <div className="bg-surface-raised border border-border rounded p-4 space-y-1">
+              <p className="text-xs text-muted font-mono uppercase tracking-wider">Current Key Slot</p>
+              <p className="text-2xl font-bold font-mono text-accent">
+                #{groqPool.currentIndex + 1} / {groqPool.totalKeys || 1}
+              </p>
+              <p className="text-xs text-muted">Strategy: {groqPool.rotationStrategy}</p>
+            </div>
+
+            <div className="bg-surface-raised border border-border rounded p-4 space-y-1">
+              <p className="text-xs text-muted font-mono uppercase tracking-wider">Rate-Limit Retry</p>
+              <p className={`text-2xl font-bold font-mono ${groqPool.rateLimitRetry ? "text-success" : "text-error"}`}>
+                {groqPool.rateLimitRetry ? "Enabled" : "Disabled"}
+              </p>
+              <p className="text-xs text-muted">Auto-rotates on HTTP 429</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-muted text-sm">Loading key pool diagnostics...</p>
+        )}
+
+        {groqPool && (
+          <div className={`text-xs font-mono p-3 rounded border ${
+            groqPool.totalKeys > 1 ? "bg-success/5 border-success/20 text-success" : "bg-accent/5 border-accent/20 text-accent"
+          }`}>
+            {groqPool.message}
+          </div>
+        )}
+
+        <div className="text-xs text-muted border-t border-border pt-3 space-y-1">
+          <p className="font-semibold text-text">How to add more keys:</p>
+          <p>Set <code className="bg-surface-raised px-1 py-0.5 rounded font-mono text-accent">GROQ_API_KEYS=gsk_key1,gsk_key2,gsk_key3</code> in your Render environment variables and redeploy.</p>
+          <p>Keys are deduplicated, rotated round-robin per request, and the next key is automatically tried on any 429 rate-limit response.</p>
         </div>
       </section>
 

@@ -252,6 +252,62 @@ class DiscordBotManager {
             this.status = "online";
             this.log(`✅ [DISCORD BOT ONLINE] Bot @${d.user.username}#${d.user.discriminator} is ONLINE with Green status!`);
           }
+
+          // Dispatch INTERACTION_CREATE event (Slash Commands & Button Clicks)
+          if (t === "INTERACTION_CREATE") {
+            const { id, token: interactionToken, data, member, user, guild_id } = d;
+            const userObj = member?.user || user;
+            const username = userObj?.username || "DiscordUser";
+            const userId = userObj?.id;
+
+            // 🎟️ Handle Button Click: "create_ticket"
+            if (data?.custom_id === "create_ticket") {
+              fetch(`https://discord.com/api/v10/interactions/${id}/${interactionToken}/callback`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: 4,
+                  data: { content: `🎟️ **Creating your private 1-on-1 support ticket...**`, flags: 64 },
+                }),
+              }).catch(() => {});
+
+              this.createLiveTicketChannel(guild_id, userId, username);
+            } else if (data?.name) {
+              // 🤖 Handle Slash Commands (/kyro-ask, /kyro-code, /kyro-fix, etc.)
+              // Acknowledge immediately with type 5 (DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE) so Discord never times out
+              fetch(`https://discord.com/api/v10/interactions/${id}/${interactionToken}/callback`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: 5 }),
+              }).catch(() => {});
+
+              const cmdName = data.name;
+              const userPrompt = data.options?.[0]?.value || `Execute slash command /${cmdName}`;
+
+              callInference([
+                { role: "system", content: "You are Kyro 70B AI Discord Bot. Provide a clean, helpful markdown response suitable for Discord chat." },
+                { role: "user", content: userPrompt },
+              ]).then((aiRes) => {
+                const appId = this.botInfo?.id || "1548576579872100374";
+                fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    content: `**[Kyro AI Response for @${username}]:**\n\n${aiRes.content}`,
+                  }),
+                }).catch(() => {});
+              }).catch((err) => {
+                const appId = this.botInfo?.id || "1548576579872100374";
+                fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    content: `⚠️ **Kyro AI Inference Error:** ${err.message}`,
+                  }),
+                }).catch(() => {});
+              });
+            }
+          }
         } catch {
           // Ignore parsing errors
         }
@@ -274,46 +330,82 @@ class DiscordBotManager {
   async setupServer(targetGuildId) {
     const categories = [
       {
-        name: "📌 INFORMATION & RULES",
+        name: "📢 INFORMATION & ANNOUNCEMENTS",
         channels: [
           { name: "#rules-and-tos", type: "Text", description: "Terms of Service, Code of Conduct & Anti-Leak Rules", listening: false },
           { name: "#announcements", type: "Text", description: "Official Server & Kyro AI Platform Announcements", listening: false },
+          { name: "#events-and-giveaways", type: "Text", description: "3x Rate Limit Boost (60 req/min) Giveaways", listening: false },
+          { name: "#patch-notes", type: "Text", description: "System updates, API changelogs & release notes", listening: false },
           { name: "#welcome-and-faq", type: "Text", description: "Welcome Guide & Account Linking Instructions", listening: false },
+          { name: "#server-status", type: "Text", description: "Live real-time operational status & latency metrics", listening: false },
         ],
       },
       {
-        name: "💬 GENERAL COMMUNITY",
+        name: "💬 PUBLIC COMMUNITY",
         channels: [
           { name: "#general-chat", type: "Text", description: "General community conversation", listening: false },
-          { name: "#tech-discussion", type: "Text", description: "Software, Web Dev & Engineering discussion", listening: false },
+          { name: "#ideas-and-feedback", type: "Text", description: "Feature requests & community feedback", listening: false },
+          { name: "#media-and-showcase", type: "Text", description: "Showcase project builds & UI designs", listening: false },
+          { name: "#ai-showcase", type: "Text", description: "Share impressive AI generations & prompt workflows", listening: false },
+          { name: "#international-chat", type: "Text", description: "Global developer chat in all languages", listening: false },
+          { name: "#memes-and-fun", type: "Text", description: "Tech humor & developer memes", listening: false },
+          { name: "#introductions", type: "Text", description: "Introduce yourself to the Kyro developer community", listening: false },
+          { name: "#off-topic", type: "Text", description: "Casual non-coding discussions", listening: false },
         ],
       },
       {
-        name: "🤖 KYRO AI HUB",
+        name: "🤖 KYRO AI & BOT COMMANDS",
         channels: [
           { name: "#ai-lounge", type: "Text", description: "Chat directly with Kyro 70B AI without pings", listening: true },
+          { name: "#code-assistant", type: "Text", description: "Ask Kyro AI to synthesize production code snippets", listening: true },
+          { name: "#custom-commands", type: "Text", description: "Synthesize dynamic slash commands via AI", listening: true },
           { name: "#bot-commands", type: "Text", description: "Execute /kyro-ask, /kyro-code, /kyro-fix slash commands", listening: true },
+          { name: "#bot-settings", type: "Text", description: "Inspect bot configuration and active rate limits", listening: false },
+          { name: "#ai-prompts-and-tips", type: "Text", description: "Best practices & system prompt optimization", listening: false },
+          { name: "#rate-limit-boosts", type: "Text", description: "Link Discord OAuth2 account for 60 req/min", listening: false },
+          { name: "#ai-art-prompts", type: "Text", description: "Share Blender 3D & Stable Diffusion prompts", listening: false },
+        ],
+      },
+      {
+        name: "🎮 GAMING & ECONOMY CASINO",
+        channels: [
+          { name: "#casino-and-daily", type: "Text", description: "Claim daily coins (/kyro-daily) & play mini-games", listening: false },
+          { name: "#slots-and-flip", type: "Text", description: "Play coin flips (/kyro-flip) & slots (/kyro-slots)", listening: false },
+          { name: "#xp-leaderboard", type: "Text", description: "Live Member XP & Economy Coin Leaderboard (/kyro-top)", listening: false },
+          { name: "#gaming-lounge", type: "Text", description: "Multiplayer gaming, LFG & casual discussion", listening: false },
+          { name: "#crypto-and-stocks", type: "Text", description: "Market discussion, Solana & AI token updates", listening: false },
+          { name: "#trivia-games", type: "Text", description: "AI coding trivia & tech quizzes", listening: false },
+          { name: "#vip-lounge", type: "Text", description: "Exclusive lounge for 3x Boosted members", listening: false },
+        ],
+      },
+      {
+        name: "🛠️ DEVELOPER & INTEGRATIONS",
+        channels: [
+          { name: "#developer-chat", type: "Text", description: "Deep tech discussions, architecture & design", listening: false },
+          { name: "#api-discussions", type: "Text", description: "Kyro API Gateway integration & endpoints", listening: false },
+          { name: "#bug-reports", type: "Text", description: "Report platform bugs & request technical fixes", listening: false },
+          { name: "#webhooks-and-rss", type: "Text", description: "HackerNews RSS feeds & automated webhooks", listening: false },
+          { name: "#github-releases", type: "Text", description: "Automated git commit & version release updates", listening: false },
+          { name: "#deployments", type: "Text", description: "Render & Vercel deployment status logs", listening: false },
+        ],
+      },
+      {
+        name: "🎟️ SUPPORT & HELP DESK",
+        channels: [
+          { name: "#ticket-desk", type: "Text", description: "Click 📩 Open Support Ticket button to start a private 1-on-1 ticket", listening: false },
+          { name: "#general-help", type: "Text", description: "Community peer support & Q&A", listening: false },
+          { name: "#billing-and-pro-support", type: "Text", description: "Account & Pro subscription assistance", listening: false },
+          { name: "#resolved-tickets", type: "Text", description: "Archived ticket logs", listening: false },
+        ],
+      },
+      {
+        name: "🛡️ MODERATION & SECURITY",
+        channels: [
+          { name: "#staff-lounge", type: "Text", description: "Private staff and moderator lounge", listening: false },
           { name: "#automod-logs", type: "Text", description: "Real-time audit log of blocked secret key leaks & spam", listening: false },
-        ],
-      },
-      {
-        name: "🎫 SUPPORT TICKETS",
-        channels: [
-          { name: "#ticket-desk", type: "Text", description: "Open 1-on-1 support tickets with AI auto-draft response", listening: false },
-        ],
-      },
-      {
-        name: "🎉 COMMUNITY EVENTS",
-        channels: [
-          { name: "#giveaways", type: "Text", description: "3x Rate Limit Boost (60 req/min) Giveaways", listening: false },
-          { name: "#xp-leaderboard", type: "Text", description: "Live Member XP & Level Leaderboard (/kyro-top)", listening: false },
-        ],
-      },
-      {
-        name: "👑 ADMIN & STAFF DECK",
-        channels: [
-          { name: "#staff-lounge", type: "Text", description: "Private staff and moderator chat", listening: false },
-          { name: "#admin-audit-logs", type: "Text", description: "System diagnostics and administrative logs", listening: false },
+          { name: "#admin-audit-logs", type: "Text", description: "System administrative actions & role modifications", listening: false },
+          { name: "#staff-only", type: "Text", description: "Restricted administrative channel", listening: false },
+          { name: "#raid-alerts", type: "Text", description: "Anti-Raid alert notifications & emergency lockdown status", listening: false },
         ],
       },
     ];
@@ -1012,9 +1104,77 @@ class DiscordBotManager {
       }
 
       return `${response.content}${extraStr}`;
+    }
+  }
+
+  async createLiveTicketChannel(guildId, userId, username) {
+    const tokenToUse = this.token || env.discordBotToken;
+    if (!tokenToUse || !guildId) return;
+
+    const ticketId = `ticket-${Math.floor(100 + Math.random() * 900)}`;
+    const chanName = `${ticketId}-${username.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+
+    try {
+      const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+        method: "POST",
+        headers: { Authorization: `Bot ${tokenToUse}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: chanName,
+          type: 0,
+          topic: `1-on-1 Support Ticket for @${username}`,
+          permission_overwrites: [
+            { id: guildId, type: 0, deny: "1024" },
+            ...(userId ? [{ id: userId, type: 1, allow: "68608" }] : []),
+          ],
+        }),
+      });
+
+      if (res.ok) {
+        const chanData = await res.json();
+        this.log(`🎫 Live Discord Private Ticket Channel created: #${chanName} (ID: ${chanData.id})`);
+
+        let aiDraft = "Welcome to Kyro AI Support Desk! An administrator will review your ticket shortly.";
+        try {
+          const aiRes = await callInference([
+            { role: "system", content: "You are Kyro AI Support Desk. Draft a friendly initial response welcoming the user and asking for details about their issue." },
+            { role: "user", content: `Ticket opened by @${username}` },
+          ]);
+          aiDraft = aiRes.content;
+        } catch {}
+
+        await fetch(`https://discord.com/api/v10/channels/${chanData.id}/messages`, {
+          method: "POST",
+          headers: { Authorization: `Bot ${tokenToUse}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            embeds: [
+              {
+                title: `🎫 Private Support Ticket: ${ticketId}`,
+                color: 0x3b82f6,
+                description: `Welcome @${username}! Your private 1-on-1 support channel has been created.\n\n**🤖 Kyro 70B AI Instant Auto-Draft Solution:**\n${aiDraft}`,
+                footer: { text: "Kyro Support Panel • Staff will review shortly" },
+              },
+            ],
+          }),
+        });
+
+        const ticketObj = {
+          ticketId,
+          channelName: `#${chanName}`,
+          author: username,
+          topic: "General Technical Support",
+          createdAt: new Date().toISOString(),
+          status: "OPEN",
+          claimedBy: null,
+          aiDraft,
+          messages: [
+            { sender: username, text: "Opened ticket on Discord", timestamp: new Date().toLocaleTimeString() },
+            { sender: "Kyro AI Bot", text: aiDraft, timestamp: new Date().toLocaleTimeString() },
+          ],
+        };
+        this.tickets.set(ticketId, ticketObj);
+      }
     } catch (err) {
-      this.log(`⚠️ AI inference error for Discord message: ${err.message}`);
-      return "Sorry, Kyro AI is experiencing high demand right now. Please try again shortly!";
+      this.log(`⚠️ Live ticket channel creation note: ${err.message}`);
     }
   }
 }

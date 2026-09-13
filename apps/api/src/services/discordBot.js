@@ -1104,6 +1104,9 @@ class DiscordBotManager {
       }
 
       return `${response.content}${extraStr}`;
+    } catch (err) {
+      this.log(`⚠️ AI inference error for Discord message: ${err.message}`);
+      return "Sorry, Kyro AI is experiencing high demand right now. Please try again shortly!";
     }
   }
 

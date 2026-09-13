@@ -52,11 +52,14 @@ export default async function chatCompletionsRoute(fastify) {
       const config = await getActiveConfig();
 
       const targetModel = model || config.activeModel;
+      const isAdmin = request.user?.role === "admin";
+
       const finalMessages = [{ role: "system", content: config.globalSystemPrompt }, ...messages];
 
+      // Admin bypass: remove secret/PII redaction and global filtering for admin API keys & admin sessions
       const sanitizedMessages = finalMessages.map((m) => ({
         role: m.role,
-        content: redactSecretsAndPII(m.content),
+        content: isAdmin ? m.content : redactSecretsAndPII(m.content),
       }));
 
       const effective = {

@@ -22,9 +22,16 @@ const TIER_LIMITS = {
 export async function enforceRateLimit(request, reply) {
   const { apiKey, user, isGuest } = request;
 
+  // Bypass all rate limits for Admin role or Admin API keys
+  if (user?.role === "admin") {
+    reply.header("X-RateLimit-Limit", "unlimited");
+    reply.header("X-RateLimit-Remaining", 999999);
+    return;
+  }
+
   const limit = isGuest
     ? env.rateLimits.guest
-    : apiKey?.rateLimitOverride ?? TIER_LIMITS[user.tier] ?? TIER_LIMITS.free;
+    : apiKey?.rateLimitOverride ?? TIER_LIMITS[user?.tier] ?? TIER_LIMITS.free;
 
   // Use a distinct bucket key per auth type so API key, session, and guest
   // quotas are tracked independently.

@@ -15,10 +15,9 @@ import {
   Trash2,
   Settings,
   PanelLeft,
-  Search,
-  Globe,
   Zap
 } from "lucide-react";
+import { getApiBaseUrl } from "../../lib/api";
 
 interface Message {
   id: string;
@@ -73,7 +72,7 @@ export default function GeminiChatPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isGenerating]);
 
-  const handleSendMessage = (textOverride?: string) => {
+  const handleSendMessage = async (textOverride?: string) => {
     const query = textOverride || inputPrompt;
     if (!query.trim() || isGenerating) return;
 
@@ -84,47 +83,71 @@ export default function GeminiChatPage() {
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     if (!textOverride) setInputPrompt("");
     setIsGenerating(true);
 
-    setTimeout(() => {
-      let thinkingText = "";
-      let responseText = "";
+    let thinkingText = "";
+    if (thinkingActive) {
+      thinkingText = `Analyzing prompt: "${query}"\nTarget Engine: ${MODELS.find((m) => m.id === selectedModel)?.name}\nRate Limit Check: Passed (20 req/min free tier)\nSynthesizing AI reasoning...`;
+    }
 
-      if (thinkingActive) {
-        thinkingText = `Analyzing prompt: "${query}"\nTarget Engine: ${MODELS.find(m => m.id === selectedModel)?.name}\nRate Limit Check: Passed (20 req/min free tier)\nGenerating response...`;
-      }
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: selectedModel === "kyro-pro" ? "kyro-coder-pro" : selectedModel === "deepseek-r1" ? "deepseek-r1" : "llama-3.3-70b-versatile",
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+        }),
+      });
 
-      if (query.toLowerCase().includes("vex") || query.toLowerCase().includes("robot")) {
-        responseText = `Here is a complete autonomous routine for VEX IQ:\n\n\`\`\`python\nimport vex\nfrom vex import Brain, Motor, Ports, FORWARD, MM, PERCENT\n\nbrain = Brain()\nLeftMotor = Motor(Ports.PORT1, GearSetting.RATIO_18_1, False)\nRightMotor = Motor(Ports.PORT6, GearSetting.RATIO_18_1, True)\n\ndef autonomous():\n    brain.screen.print("Autonomous Active")\n    LeftMotor.spin_for(FORWARD, 300, MM, 80, PERCENT, False)\n    RightMotor.spin_for(FORWARD, 300, MM, 80, PERCENT, True)\n\nautonomous()\n\`\`\n\n⚡ You can also edit and sync this live in the [Kyro 3D & Robotics Studio](/studio)!`;
-      } else if (query.toLowerCase().includes("blender") || query.toLowerCase().includes("gear")) {
-        responseText = `Here is a procedural Blender Python (\`bpy\`) script:\n\n\`\`\`python\nimport bpy\nimport math\n\ndef create_gear(teeth=24):\n    mesh = bpy.data.meshes.new("KyroGear")\n    obj = bpy.data.objects.new("SpurGear", mesh)\n    bpy.context.collection.objects.link(obj)\n    print(f"Generated {teeth}-tooth gear.")\n\ncreate_gear()\n\`\`\n\n🚀 Pushed directly to your local Blender via [Kyro 3D Studio](/studio)!`;
+      if (res.ok) {
+        const data = await res.json();
+        const responseText = data.choices?.[0]?.message?.content || "No response generated.";
+        const assistantMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: responseText,
+          thinking: thinkingText || undefined,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
       } else {
-        responseText = `Hello! I am **Kyro AI** powered by **${MODELS.find((m) => m.id === selectedModel)?.name}**.\n\nAll AI models on Kyro are **100% Free** for all accounts. How can I help you today?`;
+        const errData = await res.json().catch(() => ({}));
+        const assistantMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: `⚠️ **AI Service Notice**: ${errData?.error?.message || res.statusText || "Unable to reach Kyro AI engine."}`,
+          thinking: thinkingText || undefined,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
       }
-
+    } catch (err: any) {
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: responseText,
+        content: `⚠️ **Network Error**: ${err.message || "Could not connect to Kyro API server."}`,
         thinking: thinkingText || undefined,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-
       setMessages((prev) => [...prev, assistantMsg]);
+    } finally {
       setIsGenerating(false);
+    }
 
-      if (messages.length === 0) {
-        const newThread: Thread = {
-          id: Date.now().toString(),
-          title: query.slice(0, 26) + (query.length > 26 ? "..." : ""),
-          timestamp: "Just now",
-        };
-        setThreads((prev) => [newThread, ...prev]);
-        setActiveThreadId(newThread.id);
-      }
-    }, 800);
+    if (messages.length === 0) {
+      const newThread: Thread = {
+        id: Date.now().toString(),
+        title: query.slice(0, 26) + (query.length > 26 ? "..." : ""),
+        timestamp: "Just now",
+      };
+      setThreads((prev) => [newThread, ...prev]);
+      setActiveThreadId(newThread.id);
+    }
   };
 
   const handleNewChat = () => {

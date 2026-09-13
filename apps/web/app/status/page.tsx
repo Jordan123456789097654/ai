@@ -296,7 +296,7 @@ export default function StatusPage() {
                 </span>
                 <p className="text-[11px] font-mono text-gray-500 mt-0.5">POST /v1/chat/completions & GET /v1/models</p>
               </div>
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold">
+              <span className={getStatusBadge(metrics.apiStatus)}>
                 {metrics.apiStatus}
               </span>
             </div>
@@ -309,8 +309,8 @@ export default function StatusPage() {
                 </span>
                 <p className="text-[11px] font-mono text-gray-500 mt-0.5">React 18 / Next.js 14 Frontend Web Surface</p>
               </div>
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold">
-                Operational
+              <span className={getStatusBadge(metrics.webStatus)}>
+                {metrics.webStatus}
               </span>
             </div>
 
@@ -324,7 +324,7 @@ export default function StatusPage() {
                   Llama 3.3 70B / Llama 3.1 8B Instant • {groqPoolStats ? `${groqPoolStats.totalKeys} Multi-Key Pool Active` : "Key Pool Active"}
                 </p>
               </div>
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold">
+              <span className={getStatusBadge(metrics.groqStatus)}>
                 {metrics.groqStatus}
               </span>
             </div>
@@ -337,7 +337,7 @@ export default function StatusPage() {
                 </span>
                 <p className="text-[11px] font-mono text-gray-500 mt-0.5">User Accounts, API Keys & Usage Logging Pool</p>
               </div>
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold">
+              <span className={getStatusBadge(metrics.dbStatus)}>
                 {metrics.dbStatus}
               </span>
             </div>
@@ -350,7 +350,7 @@ export default function StatusPage() {
                 </span>
                 <p className="text-[11px] font-mono text-gray-500 mt-0.5">Distributed Token Bucket Quota Enforcement</p>
               </div>
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold">
+              <span className={getStatusBadge(metrics.redisStatus)}>
                 {metrics.redisStatus}
               </span>
             </div>
@@ -363,8 +363,8 @@ export default function StatusPage() {
                 </span>
                 <p className="text-[11px] font-mono text-gray-500 mt-0.5">Node VM / Python 3 / SQL Execution Sandbox</p>
               </div>
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold">
-                Operational
+              <span className={getStatusBadge(metrics.sandboxStatus)}>
+                {metrics.sandboxStatus}
               </span>
             </div>
 
@@ -376,8 +376,8 @@ export default function StatusPage() {
                 </span>
                 <p className="text-[11px] font-mono text-gray-500 mt-0.5">Continuous GitHub & Client Bundle Secret Leak Detector</p>
               </div>
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold">
-                Operational
+              <span className={getStatusBadge(metrics.secretScanStatus)}>
+                {metrics.secretScanStatus}
               </span>
             </div>
           </div>

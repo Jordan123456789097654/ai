@@ -1,125 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-import type { User } from "@supabase/supabase-js";
-
-// Chat and Docs are open to everyone — chat works without an account.
-const PUBLIC_LINKS = [
-  { href: "/chat", label: "Chat" },
-  { href: "/templates", label: "Templates" },
-  { href: "/tickets", label: "Tickets" },
-  { href: "/docs", label: "Docs" },
-  { href: "/status", label: "Status" },
-  { href: "/support", label: "Support" },
-  { href: "/sandbox", label: "Sandbox" },
-];
-
-// Requires a signed-in account.
-const AUTHED_LINKS = [{ href: "/dev", label: "Developer portal" }];
-
-import KyroLogo from "./KyroLogo";
+import { usePathname } from "next/navigation";
 
 export default function SiteNav() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session) fetchRole(session.access_token);
-    });
-
-    // Keep nav in sync with auth state changes (sign-in / sign-out)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session) {
-        fetchRole(session.access_token);
-      } else {
-        setIsAdmin(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  async function fetchRole(token: string) {
-    try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
-      const res = await fetch(`${API_BASE}/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const me = await res.json();
-        setIsAdmin(me.role === "admin");
-      }
-    } catch {
-      // API unreachable — hide admin link conservatively
-    }
+  // Hide top header bar completely on chat and root surface for a 100% clean Gemini UI
+  if (pathname === "/chat" || pathname === "/") {
+    return null;
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    router.push("/");
-  }
-
-  const links = [
-    ...PUBLIC_LINKS,
-    ...(user ? AUTHED_LINKS : []),
-    ...(isAdmin
-      ? [
-          { href: "/admin", label: "Admin" },
-          { href: "/code-audit", label: "Code Security" },
-          { href: "/beta", label: "Beta Lab" },
-        ]
-      : []),
-  ];
-
-  return (
-    <header className="border-b border-border">
-      <div className="mx-auto max-w-6xl flex items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-2 group">
-          <KyroLogo size="md" />
-        </Link>
-
-        <nav className="flex items-center gap-1">
-          {links.map((link) => {
-            const active = pathname?.startsWith(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                  active ? "text-ink bg-accent" : "text-muted hover:text-text"
-                }`}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-
-          {user ? (
-            <button
-              onClick={signOut}
-              className="ml-3 px-3 py-1.5 text-sm text-muted hover:text-text border border-border rounded"
-            >
-              Sign out
-            </button>
-          ) : (
-            <Link
-              href="/login"
-              className="ml-3 px-3 py-1.5 text-sm bg-accent text-ink rounded font-medium"
-            >
-              Sign in
-            </Link>
-          )}
-        </nav>
-      </div>
-    </header>
-  );
+  return null; // Ultra-clean Gemini experience across entire platform
 }

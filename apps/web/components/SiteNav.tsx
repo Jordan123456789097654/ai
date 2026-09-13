@@ -10,7 +10,6 @@ export default function SiteNav() {
   // Navigation Links
   const navItems = [
     { href: "/chat", label: "Chat", icon: MessageSquare },
-    { href: "/studio", label: "3D & Robotics Studio", icon: Box },
     { href: "/discord-bot", label: "Discord Bot Panel", icon: Bot },
     { href: "/docs", label: "Docs", icon: FileText },
     { href: "/status", label: "Status", icon: Activity },

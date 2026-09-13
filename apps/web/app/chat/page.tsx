@@ -209,12 +209,6 @@ export default function GeminiChatPage() {
               20 req/min
             </span>
           </div>
-          <Link
-            href="/studio"
-            className="flex items-center gap-2 px-3 py-2 rounded-full text-cyan-300 hover:bg-[#28292a] transition-colors text-xs"
-          >
-            🚀 3D & Robotics Studio
-          </Link>
         </div>
       </aside>
 

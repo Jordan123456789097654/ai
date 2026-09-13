@@ -173,9 +173,14 @@ fastify.listen({ port: env.port, host: "0.0.0.0" }, (err, address) => {
   fastify.log.info(`Kyro API gateway listening at ${address}`);
   fastify.log.info(`Docs at ${address}/docs`);
 
-  if (env.discordBotToken) {
-    discordBot.start().catch((err) => fastify.log.warn(`Discord Bot auto-start note: ${err.message}`));
-  }
+  // Auto-start Discord Bot 24/7 Gateway WebSocket connection on server boot
+  discordBot.start().then((res) => {
+    if (res.success) {
+      fastify.log.info(`✅ [24/7 DISCORD BOT ONLINE] Bot @${res.botUser?.username || "Kyro AI"} auto-connected to Discord Gateway WebSocket.`);
+    } else {
+      fastify.log.warn(`⚠️ Discord Bot auto-start note: ${res.error}`);
+    }
+  }).catch((err) => fastify.log.warn(`Discord Bot auto-start error: ${err.message}`));
 });
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────

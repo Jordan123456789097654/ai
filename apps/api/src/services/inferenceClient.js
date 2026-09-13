@@ -15,9 +15,15 @@ function getNextKey() {
   return key;
 }
 
-// Decommissioned models on Groq to filter out immediately
+// Known decommissioned / invalid model IDs on Groq
 const DECOMMISSIONED_MODELS = [
   "qwen-2.5-coder-32b",
+  "kyro-ultra-70b",
+  "kyro-coder-pro",
+  "kyro-flash-8b",
+  "kyro-pro",
+  "kyro-fast",
+  "kyro-reasoner",
   "llama2-70b-4096",
   "mixtral-8x7b-32768",
   "gemma-7b-it",
@@ -31,6 +37,7 @@ const PREFERRED_MODEL_KEYWORDS = [
   "llama-3.3",
   "llama-3.1",
   "qwen",
+  "deepseek",
   "gemma",
 ];
 
@@ -93,18 +100,43 @@ async function fetchAvailableModels(customKey) {
   return ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 }
 
+/** Maps Kyro custom model aliases to valid Groq provider models */
+function resolveGroqModel(requestedModel) {
+  if (!requestedModel || typeof requestedModel !== "string") {
+    return "llama-3.3-70b-versatile";
+  }
+
+  const norm = requestedModel.toLowerCase().trim();
+
+  // Fast / lightweight models
+  if (norm.includes("flash") || norm.includes("fast") || norm.includes("8b")) {
+    return "llama-3.1-8b-instant";
+  }
+
+  // Ultra / Pro / Reasoner / Coder / Default models
+  if (
+    norm.includes("kyro") ||
+    norm.includes("ultra") ||
+    norm.includes("coder") ||
+    norm.includes("pro") ||
+    norm.includes("reasoner") ||
+    norm.includes("70b") ||
+    norm.includes("32b")
+  ) {
+    return "llama-3.3-70b-versatile";
+  }
+
+  // If already a valid provider model string (e.g. llama-3.3-70b-versatile), pass through
+  return requestedModel;
+}
+
 /**
  * Calls the OpenAI-compatible cloud inference provider (Groq) using key pool or custom user key.
  * Rotates to the next available key in the pool on 429 (rate-limit) or 401 (auth error).
  * Automatically fails over to an active live model if the requested model is decommissioned or returns 400/404.
  */
 export async function callInference({ messages, model, temperature, topP, maxTokens, stream, userApiKey }) {
-  let primaryModel = model || env.inferenceModel || "llama-3.3-70b-versatile";
-
-  // Map coding models to active supported Groq models
-  if (primaryModel === "kyro-coder-pro" || primaryModel === "kyro-coder-70b" || primaryModel === "qwen-2.5-coder-32b") {
-    primaryModel = "llama-3.3-70b-versatile";
-  }
+  let primaryModel = resolveGroqModel(model || env.inferenceModel);
 
   const pool = env.groqKeyPool;
   const keyList = userApiKey ? [userApiKey, ...pool] : pool.length > 0 ? pool : [env.inferenceApiKey].filter(Boolean);
@@ -117,7 +149,7 @@ export async function callInference({ messages, model, temperature, topP, maxTok
     const keySlot = triedKeys + 1;
     triedKeys++;
 
-    console.log(`[inference] Attempt ${keySlot}/${poolSize} using model '${primaryModel}'`);
+    console.log(`[inference] Attempt ${keySlot}/${poolSize} using model '${primaryModel}' (requested: '${model}')`);
 
     let response;
     try {
@@ -152,7 +184,7 @@ export async function callInference({ messages, model, temperature, topP, maxTok
       throw err;
     }
 
-    // ── Model decommissioned / 400 / 404: automatic model failover ──────
+    // ── Model not found / 400 / 404: automatic model failover ──────────────
     if (!response.ok) {
       const bodyText = await response.text().catch(() => "");
 

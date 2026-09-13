@@ -25,16 +25,18 @@ export default async function chatCompletionsRoute(fastify) {
         body: {
           type: "object",
           required: ["messages"],
+          additionalProperties: true,
           properties: {
             model: { type: "string" },
             messages: {
               type: "array",
               items: {
                 type: "object",
-                required: ["role", "content"],
+                additionalProperties: true,
+                required: ["role"],
                 properties: {
-                  role: { type: "string", enum: ["system", "user", "assistant"] },
-                  content: { type: "string" },
+                  role: { type: "string" },
+                  content: { type: ["string", "object", "array"] },
                 },
               },
             },
@@ -57,10 +59,13 @@ export default async function chatCompletionsRoute(fastify) {
       const finalMessages = [{ role: "system", content: config.globalSystemPrompt }, ...messages];
 
       // Admin bypass: remove secret/PII redaction and global filtering for admin API keys & admin sessions
-      const sanitizedMessages = finalMessages.map((m) => ({
-        role: m.role,
-        content: isAdmin ? m.content : redactSecretsAndPII(m.content),
-      }));
+      const sanitizedMessages = finalMessages.map((m) => {
+        const textStr = typeof m.content === "object" ? JSON.stringify(m.content) : String(m.content || "");
+        return {
+          role: m.role || "user",
+          content: isAdmin ? textStr : redactSecretsAndPII(textStr),
+        };
+      });
 
       const effective = {
         model: targetModel,

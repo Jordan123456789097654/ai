@@ -5,7 +5,7 @@ let keyIndex = 0;
 
 /**
  * Returns the next Groq API key from the pool using round-robin rotation.
- * Falls back to the single inferenceApiKey if pool is empty.
+ * Falls back to single inferenceApiKey if pool is empty.
  */
 function getNextKey() {
   const pool = env.groqKeyPool;
@@ -15,23 +15,32 @@ function getNextKey() {
   return key;
 }
 
+// Decommissioned models on Groq to filter out immediately
+const DECOMMISSIONED_MODELS = [
+  "qwen-2.5-coder-32b",
+  "llama2-70b-4096",
+  "mixtral-8x7b-32768",
+  "gemma-7b-it",
+  "llama-3-70b-8192",
+  "llama-3-8b-8192",
+];
+
+const PREFERRED_MODEL_KEYWORDS = [
+  "llama-3.3-70b",
+  "llama-3.1-8b",
+  "llama-3.3",
+  "llama-3.1",
+  "qwen",
+  "gemma",
+];
+
 // In-memory cache of live available models from the provider
 let cachedProviderModels = null;
 let lastModelFetchTime = 0;
 
-const PREFERRED_MODEL_KEYWORDS = [
-  "llama-3.3",
-  "llama-3.1",
-  "llama-3.2",
-  "llama3",
-  "mixtral",
-  "gemma",
-  "qwen",
-];
-
 /**
  * Dynamically queries the upstream OpenAI-compatible provider (Groq) for
- * its currently active text generation model list, prioritizing standard LLMs.
+ * its currently active text generation model list.
  */
 async function fetchAvailableModels(customKey) {
   const now = Date.now();
@@ -52,13 +61,14 @@ async function fetchAvailableModels(customKey) {
       if (Array.isArray(data?.data)) {
         const allIds = data.data.map((m) => m.id);
 
-        // Filter out non-text (audio/whisper/safeguard) models
+        // Filter out non-text and decommissioned models
         const textModels = allIds.filter(
           (id) =>
             !id.toLowerCase().includes("whisper") &&
             !id.toLowerCase().includes("safeguard") &&
             !id.toLowerCase().includes("orpheus") &&
-            !id.toLowerCase().includes("guard")
+            !id.toLowerCase().includes("guard") &&
+            !DECOMMISSIONED_MODELS.some((d) => id.toLowerCase().includes(d))
         );
 
         // Sort by preferred chat LLM keywords
@@ -70,9 +80,9 @@ async function fetchAvailableModels(customKey) {
           return aVal - bVal;
         });
 
-        cachedProviderModels = textModels.length > 0 ? textModels : allIds;
+        cachedProviderModels = textModels.length > 0 ? textModels : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
         lastModelFetchTime = now;
-        console.log("[inference] Prioritized live chat models on provider:", cachedProviderModels);
+        console.log("[inference] Active live models on Groq provider:", cachedProviderModels);
         return cachedProviderModels;
       }
     }
@@ -80,23 +90,23 @@ async function fetchAvailableModels(customKey) {
     console.warn("[inference] Could not fetch live models list from provider:", err.message);
   }
 
-  return [];
+  return ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 }
 
 /**
  * Calls the OpenAI-compatible cloud inference provider (Groq) using key pool or custom user key.
  * Rotates to the next available key in the pool on 429 (rate-limit) or 401 (auth error).
+ * Automatically fails over to an active live model if the requested model is decommissioned or returns 400/404.
  */
 export async function callInference({ messages, model, temperature, topP, maxTokens, stream, userApiKey }) {
   let primaryModel = model || env.inferenceModel || "llama-3.3-70b-versatile";
 
-  // Specialized coding model mapping
-  if (primaryModel === "kyro-coder-pro" || primaryModel === "kyro-coder-70b") {
-    primaryModel = "qwen-2.5-coder-32b";
+  // Map coding models to active supported Groq models
+  if (primaryModel === "kyro-coder-pro" || primaryModel === "kyro-coder-70b" || primaryModel === "qwen-2.5-coder-32b") {
+    primaryModel = "llama-3.3-70b-versatile";
   }
 
   const pool = env.groqKeyPool;
-  // If user passed a custom Groq API key (e.g. starting with gsk_), prioritize it
   const keyList = userApiKey ? [userApiKey, ...pool] : pool.length > 0 ? pool : [env.inferenceApiKey].filter(Boolean);
   const poolSize = keyList.length || 1;
 
@@ -107,7 +117,7 @@ export async function callInference({ messages, model, temperature, topP, maxTok
     const keySlot = triedKeys + 1;
     triedKeys++;
 
-    console.log(`[inference] Attempt ${keySlot}/${poolSize} with model ${primaryModel}`);
+    console.log(`[inference] Attempt ${keySlot}/${poolSize} using model '${primaryModel}'`);
 
     let response;
     try {
@@ -142,24 +152,26 @@ export async function callInference({ messages, model, temperature, topP, maxTok
       throw err;
     }
 
-    // ── Model not found: fall back to live model discovery ───────────────
+    // ── Model decommissioned / 400 / 404: automatic model failover ──────
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
+      const bodyText = await response.text().catch(() => "");
 
       if (
         response.status === 404 ||
         response.status === 400 ||
-        text.includes("model_decommissioned") ||
-        text.includes("model_not_found") ||
-        text.includes("does not exist") ||
-        text.includes("do not have access")
+        bodyText.includes("decommissioned") ||
+        bodyText.includes("model_not_found") ||
+        bodyText.includes("does not exist") ||
+        bodyText.includes("do not have access")
       ) {
-        console.warn(`[inference] Model '${primaryModel}' unavailable. Querying live active models from provider...`);
+        console.warn(`[inference] Model '${primaryModel}' unavailable (${bodyText}). Querying active live models from provider...`);
 
+        // Reset cached models to force fresh lookup
+        cachedProviderModels = null;
         const liveModels = await fetchAvailableModels(currentKey);
 
         for (const liveModel of liveModels) {
-          if (liveModel === primaryModel) continue;
+          if (liveModel === primaryModel || DECOMMISSIONED_MODELS.some((d) => liveModel.includes(d))) continue;
 
           console.log(`[inference] Retrying completion with active live model: '${liveModel}'`);
           const fbResponse = await makeRequest(liveModel, { messages, temperature, topP, maxTokens, stream }, currentKey);
@@ -169,7 +181,7 @@ export async function callInference({ messages, model, temperature, topP, maxTok
         }
       }
 
-      const err = new Error(`Inference server error (${response.status}): ${text || "Provider error"}`);
+      const err = new Error(`Inference server error (${response.status}): ${bodyText || "Provider error"}`);
       err.status = response.status;
       throw err;
     }

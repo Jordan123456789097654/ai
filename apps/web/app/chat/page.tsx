@@ -498,7 +498,16 @@ export default function ChatPage() {
         setIsCanvasOpen(true);
       }
     } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      const errMsg = err.message || "Something went wrong";
+      setError(errMsg);
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last && last.role === "assistant" && !last.content) {
+          updated[updated.length - 1] = { role: "assistant", content: `⚠️ ${errMsg}` };
+        }
+        return updated;
+      });
     } finally {
       setIsStreaming(false);
     }
@@ -511,7 +520,12 @@ export default function ChatPage() {
     onDelta: (text: string, stats?: { latencyMs: number; tokens: number }) => void
   ): Promise<string> {
     const startTime = Date.now();
-    let res = await makeChatRequest(authToken, modelName, chatMessages);
+    const cleanMessages = chatMessages.map((m) => ({
+      role: m.role,
+      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+    }));
+
+    let res = await makeChatRequest(authToken, modelName, cleanMessages);
 
     if (res.status === 401 && authToken) {
       res = await makeChatRequest(null, modelName, chatMessages);

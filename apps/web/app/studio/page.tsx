@@ -26,7 +26,10 @@ import {
   Wifi,
   WifiOff,
   Activity,
-  Send
+  Send,
+  Folder,
+  Save,
+  HardDrive
 } from "lucide-react";
 
 type ViewMode = "shaded" | "wireframe" | "normals" | "metallic";
@@ -50,7 +53,57 @@ interface AutoStep {
 }
 
 export default function StudioPage() {
-  const [activeTab, setActiveTab] = useState<"blender" | "vex" | "viewport" | "ai_assistant" | "mcp_connect">("mcp_connect");
+  const [activeTab, setActiveTab] = useState<"blender" | "vex" | "viewport" | "ai_assistant" | "mcp_connect" | "pc_files">("pc_files");
+
+  // --- PC File System Editor State ---
+  const [pcFileName, setPcFileName] = useState<string>("local_robot_program.py");
+  const [pcFileContent, setPcFileContent] = useState<string>(
+    `# Local PC Disk File - Opened directly from your computer\n# Edit here and click "Save to PC Disk" to update your local file in real-time!\n\nimport vex\nfrom vex import Brain, Motor, Ports\n\nbrain = Brain()\nprint("Connected directly to PC File System!")\n`
+  );
+  const [pcFileHandle, setPcFileHandle] = useState<any>(null);
+  const [pcSaveStatus, setPcSaveStatus] = useState<string>("");
+
+  const handleOpenPcFile = async () => {
+    try {
+      if ("showOpenFilePicker" in window) {
+        const [handle] = await (window as any).showOpenFilePicker();
+        const file = await handle.getFile();
+        const text = await file.text();
+        setPcFileName(file.name);
+        setPcFileContent(text);
+        setPcFileHandle(handle);
+        setPcSaveStatus(`Opened "${file.name}" from PC`);
+      } else {
+        alert("File System Access API supported in Chrome, Edge, and modern browsers.");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSavePcFile = async () => {
+    try {
+      if (pcFileHandle) {
+        const writable = await pcFileHandle.createWritable();
+        await writable.write(pcFileContent);
+        await writable.close();
+        setPcSaveStatus(`✅ Saved to "${pcFileName}" on PC Disk at ${new Date().toLocaleTimeString()}`);
+        triggerLiveSync("vex", `PC File Updated: ${pcFileName}`, pcFileContent);
+      } else {
+        const blob = new Blob([pcFileContent], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = pcFileName;
+        a.click();
+        URL.revokeObjectURL(url);
+        setPcSaveStatus(`Downloaded "${pcFileName}" to PC`);
+      }
+    } catch (err) {
+      console.error(err);
+      setPcSaveStatus(`Error saving to PC disk: ${String(err)}`);
+    }
+  };
 
   // --- Live Connection Bridge State ---
   const [blenderConnected, setBlenderConnected] = useState<boolean>(true);
@@ -662,6 +715,14 @@ int main() {
         {/* Main Tab Navigation */}
         <div className="flex bg-[#16161e] border border-slate-800 rounded-lg p-1 text-xs">
           <button
+            onClick={() => setActiveTab("pc_files")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition-colors ${
+              activeTab === "pc_files" ? "bg-cyan-500 text-slate-950 font-semibold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Folder className="w-4 h-4 text-cyan-400" /> PC File Editor
+          </button>
+          <button
             onClick={() => setActiveTab("mcp_connect")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition-colors ${
               activeTab === "mcp_connect" ? "bg-cyan-500 text-slate-950 font-semibold" : "text-slate-400 hover:text-white"
@@ -706,6 +767,68 @@ int main() {
 
       {/* Main Studio Body */}
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* TAB -1: PC File System Editor */}
+        {activeTab === "pc_files" && (
+          <div className="lg:col-span-12 space-y-6">
+            <div className="border border-slate-800 bg-[#0f1117] rounded-xl flex flex-col overflow-hidden">
+              {/* PC File Editor Header */}
+              <div className="bg-[#141722] border-b border-slate-800 px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400">
+                    <HardDrive className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-display font-bold text-white text-base flex items-center gap-2">
+                      Direct PC Disk File Editor <span className="text-xs font-mono bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded">Native File System Access</span>
+                    </h2>
+                    <p className="text-xs text-slate-400">Open & edit files directly on your local computer disk with zero upload latency</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 font-mono text-xs">
+                  <button
+                    onClick={handleOpenPcFile}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-semibold rounded-lg border border-slate-700 transition-colors flex items-center gap-2"
+                  >
+                    <Folder className="w-4 h-4" /> Open File from PC...
+                  </button>
+                  <button
+                    onClick={handleSavePcFile}
+                    className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" /> Save to PC Disk
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Bar */}
+              {pcSaveStatus && (
+                <div className="bg-[#0b0d14] border-b border-slate-800 px-5 py-2 text-xs font-mono text-cyan-400 flex items-center justify-between">
+                  <span>{pcSaveStatus}</span>
+                  <span className="text-slate-500 text-[11px]">Direct File System handle active</span>
+                </div>
+              )}
+
+              {/* File Name & Editor */}
+              <div className="p-5 bg-[#090b10] flex flex-col space-y-3">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-400 flex items-center gap-2">
+                    <span>Editing File:</span>
+                    <span className="text-white font-bold bg-[#141722] px-2.5 py-1 rounded border border-slate-800">{pcFileName}</span>
+                  </span>
+                  <span className="text-slate-500">{pcFileContent.length} bytes</span>
+                </div>
+
+                <textarea
+                  value={pcFileContent}
+                  onChange={(e) => setPcFileContent(e.target.value)}
+                  className="w-full h-[460px] bg-[#050608] border border-slate-800 rounded-lg p-4 font-mono text-xs text-cyan-200 focus:outline-none focus:border-cyan-500 leading-relaxed resize-none"
+                  placeholder="Paste or open any script from your PC..."
+                />
+              </div>
+            </div>
+          </div>
+        )}
         {/* TAB 0: Claude Code Style MCP Connect Terminal Hub */}
         {activeTab === "mcp_connect" && (
           <div className="lg:col-span-12 space-y-6">

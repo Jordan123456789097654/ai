@@ -37,6 +37,8 @@ const UPTIME_DAYS = Array.from({ length: 90 }, (_, i) => {
     uptime: "100%",
     status: "operational",
   };
+});
+
 function getStatusBadge(status: "Operational" | "Degraded" | "Offline") {
   if (status === "Operational") {
     return "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold";

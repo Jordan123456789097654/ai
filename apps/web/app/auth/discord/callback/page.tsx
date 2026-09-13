@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, AlertCircle, RefreshCw, Zap, ShieldCheck } from "lucide-react";
+import { AlertCircle, RefreshCw, Zap, ShieldCheck } from "lucide-react";
 import { getApiBaseUrl } from "../../../../lib/api";
 
-export default function DiscordOAuthCallbackPage() {
+function DiscordOAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -111,5 +111,22 @@ export default function DiscordOAuthCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DiscordOAuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#090a0e] text-slate-100 flex items-center justify-center p-6 font-sans">
+          <div className="bg-[#121522] border border-[#242b3d] rounded-2xl p-8 max-w-md w-full text-center space-y-4">
+            <RefreshCw className="w-8 h-8 animate-spin text-amber-400 mx-auto" />
+            <p className="text-xs font-mono text-slate-400">Loading Discord OAuth callback...</p>
+          </div>
+        </div>
+      }
+    >
+      <DiscordOAuthCallbackContent />
+    </Suspense>
   );
 }

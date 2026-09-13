@@ -277,11 +277,27 @@ router.post("/live-embed/refresh", (req, res) => {
   return res.json({ success: true, message: "Live status embed refreshed!", liveData: refreshedData });
 });
 
-// POST /v1/discord/live-embed/config - Configure live embed auto-updater interval and state
-router.post("/live-embed/config", (req, res) => {
-  const { enabled, intervalSeconds, channel } = req.body || {};
-  const updatedData = discordBot.configureLiveEmbed({ enabled, intervalSeconds, channel });
-  return res.json({ success: true, message: "Live status embed configuration updated!", liveData: updatedData });
+// POST /v1/discord/interactions - Discord HTTP Interactions Webhook Endpoint
+router.post("/interactions", (req, res) => {
+  const { type, data } = req.body || {};
+
+  // Type 1: Discord Validation PING -> respond with PONG ({ type: 1 })
+  if (type === 1) {
+    return res.json({ type: 1 });
+  }
+
+  // Type 2: Application Command (Slash Command interaction)
+  if (type === 2 && data) {
+    const cmdName = data.name;
+    return res.json({
+      type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
+      data: {
+        content: `⚡ Kyro AI received slash command \`/${cmdName}\`! Processing AI completion...`,
+      },
+    });
+  }
+
+  return res.json({ type: 1 });
 });
 
 export default router;

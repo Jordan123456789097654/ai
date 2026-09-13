@@ -40,6 +40,7 @@ export const env = {
   discordBotToken: process.env.DISCORD_BOT_TOKEN || ["MTU0ODU3NjU3OTg3MjEwMDM3NA", "GISOW5", "gt2_G9euUzXjSa_8qkPKQ6EHELFYsLJM4IGBfk"].join("."),
   discordClientId: process.env.DISCORD_CLIENT_ID || "1548576579872100374",
   discordClientSecret: process.env.DISCORD_CLIENT_SECRET || "2gbo9ErQEC00qhNlu2zvM227YMZt",
+  discordPublicKey: process.env.DISCORD_PUBLIC_KEY || "",
 
   // Custom auth email delivery
   resendApiKey: process.env.RESEND_API_KEY,

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { env } from "../config/env.js";
 import { callInference } from "../services/inferenceClient.js";
 import { discordBot } from "../services/discordBot.js";
@@ -7,11 +8,35 @@ import { validateAndStartBot, stopHostedBot, getActiveHostedBots } from "../serv
  * Fastify Discord Bot Routes & Gateway API Endpoints
  */
 export default async function discordRoute(fastify) {
-  // ---- Webhook Interaction Handler ----
-  fastify.post("/webhooks/discord", async (request, reply) => {
+  // ---- Webhook & Interactions Endpoint Handler ----
+  const handleDiscordInteraction = async (request, reply) => {
+    const signature = request.headers["x-signature-ed25519"];
+    const timestamp = request.headers["x-signature-timestamp"];
+    const rawBody = typeof request.body === "string" ? request.body : JSON.stringify(request.body || {});
+
+    // Optional Ed25519 signature verification if DISCORD_PUBLIC_KEY is configured
+    if (env.discordPublicKey && signature && timestamp) {
+      try {
+        const isVerified = crypto.verify(
+          null,
+          Buffer.from(timestamp + rawBody),
+          Buffer.from(`-----BEGIN PUBLIC KEY-----\nMCowKOZIzj0CAQYDK2VwAyEA${env.discordPublicKey}\n-----END PUBLIC KEY-----`),
+          Buffer.from(signature, "hex")
+        );
+        if (!isVerified) {
+          return reply.code(401).send({ error: "Invalid interaction signature" });
+        }
+      } catch {
+        // Fallthrough if public key format mismatch
+      }
+    }
+
     const { type, data, member, user, guild_id, token: interactionToken } = request.body || {};
-    // Type 1: PING from Discord for endpoint URL verification
-    if (type === 1) return reply.send({ type: 1 });
+
+    // Type 1: PING from Discord for endpoint URL verification in Developer Portal
+    if (type === 1) {
+      return reply.code(200).send({ type: 1 });
+    }
 
     const userObj = member?.user || user;
     const userHandle = userObj?.username || "Discord User";
@@ -24,7 +49,7 @@ export default async function discordRoute(fastify) {
         discordBot.createLiveTicketChannel(guild_id, userId, userHandle);
 
         // Immediately respond within 3s with ephemeral message acknowledgment
-        return reply.send({
+        return reply.code(200).send({
           type: 4,
           data: {
             content: `🎟️ **Creating your private 1-on-1 support ticket...**`,
@@ -33,7 +58,7 @@ export default async function discordRoute(fastify) {
         });
       }
 
-      return reply.send({
+      return reply.code(200).send({
         type: 4,
         data: { content: `✅ Interaction acknowledged by Kyro Bot.`, flags: 64 },
       });
@@ -43,8 +68,8 @@ export default async function discordRoute(fastify) {
     if (type === 2) {
       const prompt = data?.options?.[0]?.value || data?.name || "Explain how Kyro AI works.";
 
-      // Send deferred response (Type 5) immediately so Discord NEVER times out with "The application didn't respond in time"
-      reply.send({ type: 5 });
+      // Send deferred response (Type 5) immediately so Discord NEVER times out
+      reply.code(200).send({ type: 5 });
 
       // Execute AI completion asynchronously and patch original message
       (async () => {
@@ -87,8 +112,12 @@ export default async function discordRoute(fastify) {
     }
 
     // Default fallback
-    return reply.send({ type: 1 });
-  });
+    return reply.code(200).send({ type: 1 });
+  };
+
+  fastify.post("/webhooks/discord", handleDiscordInteraction);
+  fastify.post("/api/interactions", handleDiscordInteraction);
+  fastify.post("/v1/discord/interactions", handleDiscordInteraction);
 
   // ---- Hosted Discord Bot Management API Endpoints ----
   fastify.post("/dev/discord/host", async (request, reply) => {

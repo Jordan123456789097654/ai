@@ -154,10 +154,10 @@ class DiscordBotManager {
             const identifyPayload = {
               op: 2,
               d: {
-                token: `Bot ${token}`,
-                intents: 3276799,
+                token: token.replace(/^Bot\s+/i, "").trim(),
+                intents: 32767,
                 properties: {
-                  os: "windows",
+                  os: "Windows",
                   browser: "KyroBot",
                   device: "KyroBot",
                 },

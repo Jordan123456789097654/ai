@@ -432,17 +432,4 @@ export default async function discordRoute(fastify) {
     const refreshedData = discordBot.refreshLiveEmbed();
     return reply.send({ success: true, message: "Live status embed refreshed!", liveData: refreshedData });
   });
-
-  // POST /v1/discord/interactions
-  fastify.post("/v1/discord/interactions", async (request, reply) => {
-    const { type, data } = request.body || {};
-    if (type === 1) return reply.send({ type: 1 });
-    if (type === 2 && data) {
-      return reply.send({
-        type: 4,
-        data: { content: `⚡ Kyro AI received slash command \`/${data.name}\`! Processing AI completion...` },
-      });
-    }
-    return reply.send({ type: 1 });
-  });
 }

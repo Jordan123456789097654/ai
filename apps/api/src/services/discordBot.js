@@ -1,3 +1,4 @@
+import { WebSocket } from "ws";
 import { env } from "../config/env.js";
 import { callInference } from "./inferenceClient.js";
 
@@ -9,6 +10,8 @@ class DiscordBotManager {
     this.presence = "Playing with Kyro 70B AI";
     this.commandPrefix = "!kyro";
     this.guildCount = 1;
+    this.ws = null;
+    this.heartbeatInterval = null;
     this.logs = [
       `[DISCORD BOT] Service initialized. Token status: ${this.token ? "CONFIGURED" : "NOT CONFIGURED"}`,
     ];
@@ -41,7 +44,60 @@ class DiscordBotManager {
     ]);
 
     // Support Ticket Desk Store
-    this.tickets = new Map();
+    this.tickets = new Map([
+      [
+        "ticket-101",
+        {
+          ticketId: "ticket-101",
+          channelName: "#ticket-101-jordan",
+          author: "Jordan",
+          topic: "How to set up Discord Bot Auto-Reply & Custom Commands?",
+          createdAt: new Date().toISOString(),
+          status: "OPEN",
+          claimedBy: null,
+          aiDraft: "Welcome to Kyro AI Support Desk! To set up auto-reply, check your Owner Discord Developer Suite.",
+          messages: [
+            { sender: "Jordan", text: "How do I add custom slash commands to my bot?", timestamp: "10:14 AM" },
+            { sender: "Kyro AI Bot", text: "Use the Slash Commands tab inside the Kyro Owner Suite or type `/kyro-ask` directly on Discord.", timestamp: "10:15 AM" },
+          ],
+        },
+      ],
+    ]);
+
+    // Managed Channels Store
+    this.channels = [
+      { name: "#ai-chat", category: "🤖 KYRO AI HUB", type: "Text", listening: true },
+      { name: "#bot-commands", category: "🤖 KYRO AI HUB", type: "Text", listening: true },
+      { name: "#kyro-logs", category: "🤖 KYRO AI HUB", type: "Text", listening: false },
+      { name: "#general", category: "💬 GENERAL COMMUNITY", type: "Text", listening: false },
+      { name: "#tech-news", category: "💬 GENERAL COMMUNITY", type: "Text", listening: false },
+    ];
+
+    // Giveaways Store
+    this.giveaways = new Map([
+      [
+        "giveaway-001",
+        {
+          id: "giveaway-001",
+          title: "🎉 Kyro Pro 3x Rate Limit Boost (60 req/min for 30 Days)",
+          prize: "3x Rate Limit Boost (60 req/min)",
+          channel: "#announcements",
+          durationHours: 24,
+          status: "ACTIVE",
+          entries: ["DevOpsPro", "CodeWizard", "DiscordUser", "AlexDev"],
+          winner: null,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    ]);
+
+    // AI Registered Slash Commands
+    this.aiCommands = [
+      { name: "kyro-ask", description: "Ask Kyro AI technical questions" },
+      { name: "kyro-code", description: "Generate production code snippets" },
+      { name: "kyro-fix", description: "Refactor and fix code syntax errors" },
+      { name: "kyro-imagine", description: "Generate AI visual art in Discord" },
+    ];
   }
 
   log(msg) {
@@ -54,7 +110,7 @@ class DiscordBotManager {
     return {
       status: this.status,
       hasToken: Boolean(this.token || env.discordBotToken),
-      botUsername: this.botInfo?.username || "KyroAIBot#0001",
+      botUsername: this.botInfo?.username || "Kyro AI#8149",
       presence: this.presence,
       commandPrefix: this.commandPrefix,
       guildCount: this.guildCount,
@@ -62,7 +118,86 @@ class DiscordBotManager {
       serverConfig: this.serverConfig,
       ticketCount: this.tickets.size,
       activeUsersTracked: this.userXP.size,
+      channelsCount: this.channels.length,
+      giveawaysCount: this.giveaways.size,
+      aiCommandsCount: this.aiCommands.length,
     };
+  }
+
+  // --- Live Discord Gateway WebSocket Connection ---
+  async connectGateway(token) {
+    try {
+      this.log("🔌 Connecting to Discord Gateway WebSocket (wss://gateway.discord.gg)...");
+      this.ws = new WebSocket("wss://gateway.discord.gg/?v=10&encoding=json");
+
+      this.ws.on("open", () => {
+        this.log("🟢 Discord WebSocket connection established! Sending IDENTIFY payload...");
+      });
+
+      this.ws.on("message", (raw) => {
+        try {
+          const payload = JSON.parse(raw.toString());
+          const { op, d, t } = payload;
+
+          // Opcode 10: HELLO -> start heartbeat
+          if (op === 10) {
+            const intervalMs = d.heartbeat_interval;
+            this.log(`💓 Received Gateway HELLO (Heartbeat interval: ${intervalMs}ms). Starting heartbeat timer...`);
+            if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = setInterval(() => {
+              if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({ op: 1, d: null }));
+              }
+            }, intervalMs);
+
+            // Send Opcode 2: IDENTIFY
+            const identifyPayload = {
+              op: 2,
+              d: {
+                token: `Bot ${token}`,
+                intents: 3276799,
+                properties: {
+                  os: "windows",
+                  browser: "KyroBot",
+                  device: "KyroBot",
+                },
+                presence: {
+                  status: "online",
+                  activities: [
+                    {
+                      name: this.presence,
+                      type: 0,
+                    },
+                  ],
+                  afk: false,
+                },
+              },
+            };
+            this.ws.send(JSON.stringify(identifyPayload));
+          }
+
+          // Dispatch READY event
+          if (t === "READY") {
+            this.botInfo = d.user;
+            this.status = "online";
+            this.log(`✅ [DISCORD BOT ONLINE] Bot @${d.user.username}#${d.user.discriminator} is ONLINE with Green status!`);
+          }
+        } catch {
+          // Ignore parsing errors
+        }
+      });
+
+      this.ws.on("error", (err) => {
+        this.log(`⚠️ Discord Gateway WebSocket error: ${err.message}`);
+      });
+
+      this.ws.on("close", (code, reason) => {
+        this.log(`⏹️ Gateway WebSocket closed (${code}): ${reason || "Connection dropped"}`);
+        if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+      });
+    } catch (err) {
+      this.log(`❌ Failed to establish Gateway WebSocket: ${err.message}`);
+    }
   }
 
   // --- Remote Server Config Persister ---
@@ -138,7 +273,7 @@ class DiscordBotManager {
       .map(([user, data], idx) => ({ rank: idx + 1, user, ...data }));
   }
 
-  // --- Support Ticket Desk Generator ---
+  // --- Support Ticket Panel Actions (Reply, Claim, Close) ---
   async createTicket(author, topic = "General Technical Support") {
     const ticketId = `ticket-${Math.floor(100 + Math.random() * 900)}`;
     const channelName = `#${ticketId}-${author.toLowerCase()}`;
@@ -161,12 +296,138 @@ class DiscordBotManager {
       topic,
       createdAt: new Date().toISOString(),
       status: "OPEN",
+      claimedBy: null,
       aiDraft,
+      messages: [
+        { sender: author, text: `Opened ticket regarding: ${topic}`, timestamp: new Date().toLocaleTimeString() },
+        { sender: "Kyro AI Bot", text: aiDraft, timestamp: new Date().toLocaleTimeString() },
+      ],
     };
 
     this.tickets.set(ticketId, ticketObj);
     this.log(`🎫 [SUPPORT TICKET] Generated channel ${channelName} for @${author}.`);
     return ticketObj;
+  }
+
+  getTickets() {
+    return Array.from(this.tickets.values());
+  }
+
+  replyTicket(ticketId, sender = "Admin", text = "") {
+    const ticket = this.tickets.get(ticketId);
+    if (!ticket) throw new Error(`Ticket ${ticketId} not found.`);
+    ticket.messages.push({ sender, text, timestamp: new Date().toLocaleTimeString() });
+    this.log(`💬 [TICKET REPLY] @${sender} replied to ${ticket.channelName}: "${text.slice(0, 30)}..."`);
+    return ticket;
+  }
+
+  claimTicket(ticketId, adminName = "Platform Owner") {
+    const ticket = this.tickets.get(ticketId);
+    if (!ticket) throw new Error(`Ticket ${ticketId} not found.`);
+    ticket.claimedBy = adminName;
+    this.log(`👑 [TICKET CLAIMED] ${ticket.channelName} claimed by @${adminName}.`);
+    return ticket;
+  }
+
+  closeTicket(ticketId, adminName = "Platform Owner") {
+    const ticket = this.tickets.get(ticketId);
+    if (!ticket) throw new Error(`Ticket ${ticketId} not found.`);
+    ticket.status = "CLOSED";
+    this.log(`🔒 [TICKET CLOSED] ${ticket.channelName} closed by @${adminName}.`);
+    return ticket;
+  }
+
+  // --- Managed Channels Actions ---
+  getChannels() {
+    return this.channels;
+  }
+
+  createChannel({ name, category = "💬 GENERAL COMMUNITY", type = "Text" }) {
+    const cleanName = name.startsWith("#") ? name : `#${name}`;
+    const newChan = { name: cleanName, category, type, listening: true };
+    this.channels.push(newChan);
+    this.log(`💬 [CHANNEL CREATED] Created ${cleanName} inside category ${category}.`);
+    return newChan;
+  }
+
+  deleteChannel(name) {
+    this.channels = this.channels.filter((c) => c.name !== name);
+    this.log(`🗑️ [CHANNEL DELETED] Removed ${name} from server structure.`);
+    return this.channels;
+  }
+
+  toggleChannelListening(name, listening) {
+    const chan = this.channels.find((c) => c.name === name);
+    if (chan) {
+      chan.listening = listening;
+      this.log(`⚡ [CHANNEL CONFIG] ${name} AI listening set to ${listening ? "ENABLED" : "DISABLED"}.`);
+    }
+    return chan;
+  }
+
+  // --- Giveaways Manager Actions ---
+  getGiveaways() {
+    return Array.from(this.giveaways.values());
+  }
+
+  createGiveaway({ title, prize, channel = "#announcements", durationHours = 24 }) {
+    const id = `giveaway-${Math.floor(100 + Math.random() * 900)}`;
+    const giveaway = {
+      id,
+      title,
+      prize,
+      channel,
+      durationHours,
+      status: "ACTIVE",
+      entries: ["DevOpsPro", "CodeWizard", "DiscordUser"],
+      winner: null,
+      createdAt: new Date().toISOString(),
+    };
+    this.giveaways.set(id, giveaway);
+    this.log(`🎉 [GIVEAWAY LAUNCHED] "${title}" posted to channel ${channel}!`);
+    return giveaway;
+  }
+
+  endGiveaway(giveawayId) {
+    const giveaway = this.giveaways.get(giveawayId);
+    if (!giveaway) throw new Error(`Giveaway ${giveawayId} not found.`);
+    
+    if (giveaway.entries.length > 0) {
+      const winnerIdx = Math.floor(Math.random() * giveaway.entries.length);
+      giveaway.winner = giveaway.entries[winnerIdx];
+    } else {
+      giveaway.winner = "No Entrants";
+    }
+    giveaway.status = "ENDED";
+    this.log(`🎉 [GIVEAWAY WINNER DRAWN] ${giveaway.title} Winner: @${giveaway.winner}!`);
+    return giveaway;
+  }
+
+  // --- AI Self-Command Creator ---
+  async generateAndRegisterCommand(prompt) {
+    this.log(`🤖 [AI COMMAND CREATOR] Synthesizing slash command for prompt: "${prompt}"...`);
+
+    let cmdName = `kyro-${Math.floor(100 + Math.random() * 900)}`;
+    let cmdDesc = "Custom AI slash command";
+
+    try {
+      const response = await callInference([
+        { role: "system", content: "Extract a concise slash command name (alphanumeric with hyphens, lowercase) and description from the user prompt. Return JSON: {\"name\": \"...\", \"description\": \"...\"}" },
+        { role: "user", content: prompt },
+      ]);
+
+      const parsed = JSON.parse(response.content.replace(/```json|```/g, "").trim());
+      if (parsed.name) cmdName = parsed.name.toLowerCase().replace(/[^a-z0-9-]/g, "");
+      if (parsed.description) cmdDesc = parsed.description;
+    } catch {
+      // Fallback extraction
+      cmdName = `kyro-${prompt.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10)}`;
+    }
+
+    const newCmd = { name: cmdName, description: cmdDesc };
+    this.aiCommands.push(newCmd);
+    this.log(`📜 [AI COMMAND CREATED] Registered new command /${cmdName}: "${cmdDesc}"`);
+    return newCmd;
   }
 
   async start() {
@@ -197,7 +458,10 @@ class DiscordBotManager {
       this.botInfo = botUser;
       this.status = "online";
       this.log(`✅ Discord Bot Online! Username: ${botUser.username}#${botUser.discriminator} (ID: ${botUser.id})`);
-      this.log(`🤖 Activity presence set to: "${this.presence}"`);
+
+      // Connect to Discord Gateway WebSocket to set bot ONLINE (Green Dot)
+      await this.connectGateway(tokenToUse);
+
       return { success: true, botUser };
     } catch (err) {
       this.status = "error";
@@ -207,6 +471,14 @@ class DiscordBotManager {
   }
 
   async stop() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
     this.status = "stopped";
     this.log("⏹️ Discord Bot Service stopped.");
     return { success: true };

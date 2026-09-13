@@ -38,7 +38,11 @@ import {
   Users,
   Bell,
   MessageCircle,
-  FileText
+  FileText,
+  Gift,
+  Wand2,
+  Volume2,
+  UserCheck
 } from "lucide-react";
 import { getApiBaseUrl } from "../../lib/api";
 
@@ -60,7 +64,9 @@ export default function OwnerDiscordSuitePage() {
   const [authError, setAuthError] = useState<string>("");
 
   // --- Active Tab State ---
-  const [activeTab, setActiveTab] = useState<"connection" | "auto_reply" | "server_setup" | "embed_builder" | "slash_commands" | "automod" | "leveling" | "tickets" | "webhooks" | "admin">("connection");
+  const [activeTab, setActiveTab] = useState<
+    "connection" | "auto_reply" | "server_setup" | "embed_builder" | "slash_commands" | "automod" | "leveling" | "tickets" | "webhooks" | "admin" | "channels" | "giveaways" | "ai_commands"
+  >("connection");
 
   // --- Bot Connection State ---
   const [botToken, setBotToken] = useState<string>("");
@@ -120,10 +126,64 @@ export default function OwnerDiscordSuitePage() {
   ]);
   const [levelingStatus, setLevelingStatus] = useState<string>("");
 
-  // --- 🎫 Support Ticket Desk State ---
+  // --- 🎫 Support Ticket Desk & Management Panel State ---
   const [ticketTopic, setTicketTopic] = useState<string>("API & Code Debugging Assistance");
-  const [createdTickets, setCreatedTickets] = useState<Array<any>>([]);
+  const [createdTickets, setCreatedTickets] = useState<Array<any>>([
+    {
+      ticketId: "ticket-101",
+      channelName: "#ticket-101-jordan",
+      author: "Jordan",
+      topic: "How to set up Discord Bot Auto-Reply & Custom Commands?",
+      createdAt: new Date().toISOString(),
+      status: "OPEN",
+      claimedBy: null,
+      aiDraft: "Welcome to Kyro AI Support Desk! To set up auto-reply, check your Owner Discord Developer Suite.",
+      messages: [
+        { sender: "Jordan", text: "How do I add custom slash commands to my bot?", timestamp: "10:14 AM" },
+        { sender: "Kyro AI Bot", text: "Use the Slash Commands tab inside the Kyro Owner Suite or type `/kyro-ask` directly on Discord.", timestamp: "10:15 AM" },
+      ],
+    },
+  ]);
+  const [selectedTicketId, setSelectedTicketId] = useState<string>("ticket-101");
+  const [replyInputText, setReplyInputText] = useState<string>("");
   const [ticketStatus, setTicketStatus] = useState<string>("");
+
+  // --- 💬 Channel Remote Configurator State ---
+  const [channelsList, setChannelsList] = useState<Array<{ name: string; category: string; type: string; listening: boolean }>>([
+    { name: "#ai-chat", category: "🤖 KYRO AI HUB", type: "Text", listening: true },
+    { name: "#bot-commands", category: "🤖 KYRO AI HUB", type: "Text", listening: true },
+    { name: "#kyro-logs", category: "🤖 KYRO AI HUB", type: "Text", listening: false },
+    { name: "#general", category: "💬 GENERAL COMMUNITY", type: "Text", listening: false },
+    { name: "#tech-news", category: "💬 GENERAL COMMUNITY", type: "Text", listening: false },
+  ]);
+  const [newChanNameInput, setNewChanNameInput] = useState<string>("");
+  const [newChanCatInput, setNewChanCatInput] = useState<string>("💬 GENERAL COMMUNITY");
+  const [channelStatus, setChannelStatus] = useState<string>("");
+
+  // --- 🎉 Giveaways Manager State ---
+  const [giveawaysList, setGiveawaysList] = useState<Array<any>>([
+    {
+      id: "giveaway-001",
+      title: "🎉 Kyro Pro 3x Rate Limit Boost (60 req/min for 30 Days)",
+      prize: "3x Rate Limit Boost (60 req/min)",
+      channel: "#announcements",
+      durationHours: 24,
+      status: "ACTIVE",
+      entries: ["DevOpsPro", "CodeWizard", "DiscordUser", "AlexDev"],
+      winner: null,
+      createdAt: new Date().toISOString(),
+    },
+  ]);
+  const [giveawayTitleInput, setGiveawayTitleInput] = useState<string>("🎉 Kyro Pro 3x Rate Limit Boost Giveaway");
+  const [giveawayPrizeInput, setGiveawayPrizeInput] = useState<string>("3x Rate Limit Boost (60 req/min for 30 Days)");
+  const [giveawayChanInput, setGiveawayChanInput] = useState<string>("#announcements");
+  const [giveawayDurationInput, setGiveawayDurationInput] = useState<number>(24);
+  const [giveawayStatusMsg, setGiveawayStatusMsg] = useState<string>("");
+
+  // --- 🤖 AI Self-Command Creator State ---
+  const [aiCmdPrompt, setAiCmdPrompt] = useState<string>("Create a slash command /kyro-weather that fetches 5-day weather forecasts");
+  const [isGeneratingAiCmd, setIsGeneratingAiCmd] = useState<boolean>(false);
+  const [aiCmdStatus, setAiCmdStatus] = useState<string>("");
 
   // --- ⚙️ Webhooks & RSS Feeds State ---
   const [rssFeedName, setRssFeedName] = useState<string>("Tech News RSS");
@@ -171,6 +231,7 @@ export default function OwnerDiscordSuitePage() {
     }
   };
 
+  // Support Ticket Actions (Reply, Claim, Close)
   const handleCreateSupportTicket = async () => {
     try {
       const baseUrl = getApiBaseUrl();
@@ -182,10 +243,194 @@ export default function OwnerDiscordSuitePage() {
       if (res.ok) {
         const data = await res.json();
         setCreatedTickets((prev) => [data.ticket, ...prev]);
+        setSelectedTicketId(data.ticket.ticketId);
         setTicketStatus(`✅ Ticket ${data.ticket.channelName} generated with instant AI auto-draft!`);
       }
     } catch (err: any) {
       setTicketStatus(`⚠️ Error generating ticket: ${err.message}`);
+    }
+  };
+
+  const handleReplyTicket = async () => {
+    if (!replyInputText.trim() || !selectedTicketId) return;
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/tickets/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: selectedTicketId, sender: "Platform Owner", text: replyInputText }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCreatedTickets((prev) => prev.map((t) => (t.ticketId === selectedTicketId ? data.ticket : t)));
+        setReplyInputText("");
+        setTicketStatus(`💬 Replied to ticket ${selectedTicketId}!`);
+      }
+    } catch (err: any) {
+      setTicketStatus(`⚠️ Error replying to ticket: ${err.message}`);
+    }
+  };
+
+  const handleClaimTicket = async () => {
+    if (!selectedTicketId) return;
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/tickets/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: selectedTicketId, adminName: "Platform Owner" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCreatedTickets((prev) => prev.map((t) => (t.ticketId === selectedTicketId ? data.ticket : t)));
+        setTicketStatus(`👑 Claimed ticket ${selectedTicketId}!`);
+      }
+    } catch (err: any) {
+      setTicketStatus(`⚠️ Error claiming ticket: ${err.message}`);
+    }
+  };
+
+  const handleCloseTicket = async () => {
+    if (!selectedTicketId) return;
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/tickets/close`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: selectedTicketId, adminName: "Platform Owner" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCreatedTickets((prev) => prev.map((t) => (t.ticketId === selectedTicketId ? data.ticket : t)));
+        setTicketStatus(`🔒 Closed ticket ${selectedTicketId}!`);
+      }
+    } catch (err: any) {
+      setTicketStatus(`⚠️ Error closing ticket: ${err.message}`);
+    }
+  };
+
+  // Channel Configurator Actions
+  const handleCreateChannel = async () => {
+    if (!newChanNameInput.trim()) return;
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/channels/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newChanNameInput, category: newChanCatInput }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChannelsList((prev) => [...prev, data.channel]);
+        setNewChanNameInput("");
+        setChannelStatus(`💬 Created channel ${data.channel.name}!`);
+      }
+    } catch (err: any) {
+      setChannelStatus(`⚠️ Error creating channel: ${err.message}`);
+    }
+  };
+
+  const handleDeleteChannel = async (name: string) => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/channels/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        setChannelsList((prev) => prev.filter((c) => c.name !== name));
+        setChannelStatus(`🗑️ Deleted channel ${name}!`);
+      }
+    } catch (err: any) {
+      setChannelStatus(`⚠️ Error deleting channel: ${err.message}`);
+    }
+  };
+
+  const handleToggleChannelListening = async (name: string, listening: boolean) => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/channels/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, listening: !listening }),
+      });
+      if (res.ok) {
+        setChannelsList((prev) => prev.map((c) => (c.name === name ? { ...c, listening: !listening } : c)));
+        setChannelStatus(`⚡ Toggled AI listening for ${name} to ${!listening ? "ENABLED" : "DISABLED"}.`);
+      }
+    } catch (err: any) {
+      setChannelStatus(`⚠️ Error toggling channel: ${err.message}`);
+    }
+  };
+
+  // Giveaways Manager Actions
+  const handleLaunchGiveaway = async () => {
+    if (!giveawayTitleInput.trim() || !giveawayPrizeInput.trim()) return;
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/giveaways/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: giveawayTitleInput,
+          prize: giveawayPrizeInput,
+          channel: giveawayChanInput,
+          durationHours: giveawayDurationInput,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGiveawaysList((prev) => [data.giveaway, ...prev]);
+        setGiveawayStatusMsg(`🎉 Giveaway "${data.giveaway.title}" launched on Discord in channel ${data.giveaway.channel}!`);
+      }
+    } catch (err: any) {
+      setGiveawayStatusMsg(`⚠️ Error launching giveaway: ${err.message}`);
+    }
+  };
+
+  const handleDrawWinner = async (giveawayId: string) => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/giveaways/end`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ giveawayId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGiveawaysList((prev) => prev.map((g) => (g.id === giveawayId ? data.giveaway : g)));
+        setGiveawayStatusMsg(`🎉 Winner for "${data.giveaway.title}": @${data.giveaway.winner}!`);
+      }
+    } catch (err: any) {
+      setGiveawayStatusMsg(`⚠️ Error drawing winner: ${err.message}`);
+    }
+  };
+
+  // AI Dynamic Self-Command Creator Action
+  const handleGenerateAiCommand = async () => {
+    if (!aiCmdPrompt.trim()) return;
+    setIsGeneratingAiCmd(true);
+    setAiCmdStatus("🤖 Kyro AI is synthesizing slash command schema and registering with Discord API v10...");
+
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/ai-create-command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiCmdPrompt }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSlashCommands((prev) => [...prev, data.command]);
+        setAiCmdStatus(`✅ AI created & registered command /${data.command.name}: "${data.command.description}"`);
+        setAiCmdPrompt("");
+      }
+    } catch (err: any) {
+      setAiCmdStatus(`⚠️ Error creating AI command: ${err.message}`);
+    } finally {
+      setIsGeneratingAiCmd(false);
     }
   };
 
@@ -498,20 +743,28 @@ export default function OwnerDiscordSuitePage() {
               <Zap className="w-3.5 h-3.5" /> Auto-AI
             </button>
             <button
-              onClick={() => setActiveTab("server_setup")}
+              onClick={() => setActiveTab("channels")}
               className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-                activeTab === "server_setup" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+                activeTab === "channels" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
               }`}
             >
-              <Hash className="w-3.5 h-3.5" /> Server Provisioner
+              <Hash className="w-3.5 h-3.5" /> Channels
             </button>
             <button
-              onClick={() => setActiveTab("embed_builder")}
+              onClick={() => setActiveTab("giveaways")}
               className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-                activeTab === "embed_builder" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+                activeTab === "giveaways" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
               }`}
             >
-              <Palette className="w-3.5 h-3.5" /> Rich Embeds
+              <Gift className="w-3.5 h-3.5" /> Giveaways
+            </button>
+            <button
+              onClick={() => setActiveTab("ai_commands")}
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === "ai_commands" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Wand2 className="w-3.5 h-3.5" /> AI Command Creator
             </button>
             <button
               onClick={() => setActiveTab("slash_commands")}
@@ -1039,22 +1292,22 @@ export default function OwnerDiscordSuitePage() {
           </div>
         )}
 
-        {/* TAB 8: 🎫 Support Ticket Desk */}
+        {/* TAB 8: 🎫 Support Ticket & Help Desk Management Panel */}
         {activeTab === "tickets" && (
           <div className="space-y-6">
             <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
               <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
                 <div>
                   <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
-                    <Ticket className="w-5 h-5 text-amber-400" /> AI Support Ticket & Help Desk
+                    <Ticket className="w-5 h-5 text-amber-400" /> Support Ticket Management Panel
                   </h2>
-                  <p className="text-xs text-slate-400">Instantly generate private ticket channels (`#ticket-101`) with Kyro AI auto-drafted answers</p>
+                  <p className="text-xs text-slate-400">View live tickets, claim ownership, reply directly to users, and export channel transcripts</p>
                 </div>
                 <button
                   onClick={handleCreateSupportTicket}
                   className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-colors shadow-lg"
                 >
-                  🎫 Generate Support Ticket
+                  🎫 Generate Demo Ticket
                 </button>
               </div>
 
@@ -1064,31 +1317,367 @@ export default function OwnerDiscordSuitePage() {
                 </div>
               )}
 
-              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3 text-xs font-mono">
-                <label className="font-bold text-white block">Default Support Category Topic</label>
-                <input
-                  type="text"
-                  value={ticketTopic}
-                  onChange={(e) => setTicketTopic(e.target.value)}
-                  className="w-full bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2.5 focus:outline-none"
-                />
+              {/* Tickets Management Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 font-mono text-xs">
+                {/* Left Column: Tickets List */}
+                <div className="lg:col-span-5 bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3">
+                  <h3 className="font-bold text-white text-sm flex items-center justify-between">
+                    <span>Active Support Tickets</span>
+                    <span className="text-amber-400 font-mono text-xs">{createdTickets.length} Tickets</span>
+                  </h3>
+
+                  <div className="space-y-2">
+                    {createdTickets.map((t) => (
+                      <button
+                        key={t.ticketId}
+                        onClick={() => setSelectedTicketId(t.ticketId)}
+                        className={`w-full text-left p-3.5 rounded-xl border transition-all space-y-1.5 ${
+                          selectedTicketId === t.ticketId
+                            ? "bg-[#1b202e] border-amber-500 text-white shadow-lg"
+                            : "bg-[#08090d] border-[#242b3d] text-slate-300 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center font-bold">
+                          <span className="text-amber-400">{t.channelName}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${t.status === "OPEN" ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-700 text-slate-400"}`}>
+                            {t.status}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate">{t.topic}</p>
+                        <div className="flex justify-between text-[10px] text-slate-500">
+                          <span>User: @{t.author}</span>
+                          <span>{t.claimedBy ? `Claimed by: @${t.claimedBy}` : "Unclaimed"}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Column: Ticket Thread & Actions */}
+                <div className="lg:col-span-7 bg-[#121522] border border-[#242b3d] rounded-xl p-5 space-y-4 flex flex-col justify-between">
+                  {selectedTicketId && createdTickets.find((t) => t.ticketId === selectedTicketId) ? (
+                    (() => {
+                      const activeTicket = createdTickets.find((t) => t.ticketId === selectedTicketId)!;
+                      return (
+                        <>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between border-b border-[#242b3d] pb-3">
+                              <div>
+                                <h4 className="font-bold text-amber-400 text-sm">{activeTicket.channelName}</h4>
+                                <p className="text-slate-400 text-[11px]">Topic: {activeTicket.topic}</p>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={handleClaimTicket}
+                                  disabled={activeTicket.claimedBy !== null}
+                                  className="px-3 py-1.5 bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border border-cyan-500/40 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                >
+                                  {activeTicket.claimedBy ? `Claimed by @${activeTicket.claimedBy}` : "👑 Claim Ticket"}
+                                </button>
+                                <button
+                                  onClick={handleCloseTicket}
+                                  disabled={activeTicket.status === "CLOSED"}
+                                  className="px-3 py-1.5 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                                >
+                                  {activeTicket.status === "CLOSED" ? "🔒 Closed" : "🔒 Close Ticket"}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Thread Messages */}
+                            <div className="bg-[#08090d] border border-[#242b3d] rounded-xl p-4 space-y-3 h-[240px] overflow-y-auto">
+                              {activeTicket.messages?.map((m: any, idx: number) => (
+                                <div key={idx} className="space-y-1">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold text-amber-300">@{m.sender}</span>
+                                    <span className="text-slate-500">{m.timestamp}</span>
+                                  </div>
+                                  <div className="bg-[#141724] p-2.5 rounded-lg text-slate-200 leading-relaxed text-[11px]">
+                                    {m.text}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Reply Input Box */}
+                          <div className="pt-2 flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Type admin response to ticket..."
+                              value={replyInputText}
+                              onChange={(e) => setReplyInputText(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleReplyTicket()}
+                              className="flex-1 bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-amber-500"
+                            />
+                            <button
+                              onClick={handleReplyTicket}
+                              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md"
+                            >
+                              <Send className="w-4 h-4" /> Reply
+                            </button>
+                          </div>
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <div className="text-slate-400 text-center py-12">Select a ticket from the left panel to manage.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 11: 💬 Remote Channel Configurator */}
+        {activeTab === "channels" && (
+          <div className="space-y-6">
+            <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
+                <div>
+                  <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                    <Hash className="w-5 h-5 text-amber-400" /> Discord Remote Channel Configurator
+                  </h2>
+                  <p className="text-xs text-slate-400">Provision server channels, delete unused channels, and toggle AI listening whitelists</p>
+                </div>
               </div>
 
-              {/* Created Ticket Logs */}
-              {createdTickets.length > 0 && (
-                <div className="space-y-3 font-mono text-xs">
-                  <h3 className="font-bold text-slate-300">Generated Support Channels</h3>
-                  {createdTickets.map((t, idx) => (
-                    <div key={idx} className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-2">
-                      <div className="flex justify-between items-center text-amber-400 font-bold">
-                        <span>{t.channelName} (ID: {t.ticketId})</span>
-                        <span className="text-xs text-emerald-400">Status: {t.status}</span>
+              {channelStatus && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
+                  {channelStatus}
+                </div>
+              )}
+
+              {/* Create Channel Input */}
+              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 flex gap-3 text-xs font-mono">
+                <input
+                  type="text"
+                  placeholder="Channel Name (e.g. #ai-support)"
+                  value={newChanNameInput}
+                  onChange={(e) => setNewChanNameInput(e.target.value)}
+                  className="bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2.5 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Category (e.g. 🤖 KYRO AI HUB)"
+                  value={newChanCatInput}
+                  onChange={(e) => setNewChanCatInput(e.target.value)}
+                  className="flex-1 bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2.5 focus:outline-none"
+                />
+                <button
+                  onClick={handleCreateChannel}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-lg"
+                >
+                  <Plus className="w-4 h-4" /> Provision Channel
+                </button>
+              </div>
+
+              {/* Channels List Table */}
+              <div className="border border-[#242b3d] rounded-xl overflow-hidden font-mono text-xs">
+                <div className="bg-[#141724] px-4 py-3 font-bold text-slate-300 flex justify-between">
+                  <span>Server Channels ({channelsList.length})</span>
+                  <span>AI Listening & Actions</span>
+                </div>
+                <div className="divide-y divide-[#1b202e] bg-[#08090d]">
+                  {channelsList.map((c, idx) => (
+                    <div key={idx} className="px-4 py-3 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <div className="text-amber-400 font-bold flex items-center gap-2">
+                          <Hash className="w-3.5 h-3.5" /> {c.name}
+                        </div>
+                        <div className="text-slate-500 text-[10px]">Category: {c.category} • Type: {c.type}</div>
                       </div>
-                      <p className="text-slate-300 text-[11px] bg-[#08090d] p-3 rounded-lg border border-[#1b202e]">{t.aiDraft}</p>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleToggleChannelListening(c.name, c.listening)}
+                          className={`px-3 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                            c.listening
+                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                              : "bg-slate-800 text-slate-400 border-slate-700"
+                          }`}
+                        >
+                          {c.listening ? "⚡ AI Listening ACTIVE" : "⏸️ AI Listening OFF"}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteChannel(c.name)}
+                          className="p-1.5 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 12: 🎉 Discord Giveaways Manager */}
+        {activeTab === "giveaways" && (
+          <div className="space-y-6">
+            <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
+                <div>
+                  <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                    <Gift className="w-5 h-5 text-amber-400" /> Discord Giveaways Manager
+                  </h2>
+                  <p className="text-xs text-slate-400">Launch rich embed giveaways for 3x Rate-Limit Boosts and VIP roles directly to Discord</p>
+                </div>
+              </div>
+
+              {giveawayStatusMsg && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
+                  {giveawayStatusMsg}
+                </div>
               )}
+
+              {/* Launch Giveaway Form */}
+              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-5 space-y-4 font-mono text-xs">
+                <h3 className="font-bold text-white text-sm">Launch New Server Giveaway</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-300 block mb-1">Giveaway Title</label>
+                    <input
+                      type="text"
+                      value={giveawayTitleInput}
+                      onChange={(e) => setGiveawayTitleInput(e.target.value)}
+                      className="w-full bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-300 block mb-1">Prize Reward</label>
+                    <input
+                      type="text"
+                      value={giveawayPrizeInput}
+                      onChange={(e) => setGiveawayPrizeInput(e.target.value)}
+                      className="w-full bg-[#08090d] border border-[#242b3d] text-amber-300 rounded-xl px-3.5 py-2 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-300 block mb-1">Target Channel</label>
+                    <input
+                      type="text"
+                      value={giveawayChanInput}
+                      onChange={(e) => setGiveawayChanInput(e.target.value)}
+                      className="w-full bg-[#08090d] border border-[#242b3d] text-cyan-300 rounded-xl px-3.5 py-2 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-300 block mb-1">Duration (Hours)</label>
+                    <input
+                      type="number"
+                      value={giveawayDurationInput}
+                      onChange={(e) => setGiveawayDurationInput(parseInt(e.target.value) || 24)}
+                      className="w-full bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleLaunchGiveaway}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+                >
+                  <Gift className="w-4 h-4" /> Launch Giveaway to Discord
+                </button>
+              </div>
+
+              {/* Active Giveaways List */}
+              <div className="space-y-3 font-mono text-xs">
+                <h3 className="font-bold text-slate-300">Active & Past Giveaways</h3>
+                {giveawaysList.map((g) => (
+                  <div key={g.id} className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="font-bold text-amber-400 text-sm flex items-center gap-2">
+                        <Gift className="w-4 h-4 text-amber-400" /> {g.title}
+                      </div>
+                      <div className="text-slate-400 text-[11px]">Prize: {g.prize} • Channel: {g.channel}</div>
+                      <div className="text-slate-500 text-[10px]">
+                        Entrants: {g.entries?.length || 0} users ({g.entries?.join(", ")})
+                      </div>
+                    </div>
+
+                    <div className="text-right space-y-1">
+                      {g.status === "ENDED" ? (
+                        <div className="text-emerald-400 font-bold bg-emerald-500/20 px-3 py-1 rounded-lg border border-emerald-500/30">
+                          🎉 Winner: @{g.winner}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleDrawWinner(g.id)}
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5"
+                        >
+                          🎉 Draw Winner Now
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 13: 🤖 AI Dynamic Self-Command Creator */}
+        {activeTab === "ai_commands" && (
+          <div className="space-y-6">
+            <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
+                <div>
+                  <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                    <Wand2 className="w-5 h-5 text-amber-400" /> AI Dynamic Self-Command Creator
+                  </h2>
+                  <p className="text-xs text-slate-400">Describe what command you want in natural language. Kyro AI will program, synthesize, and register it with Discord API v10!</p>
+                </div>
+              </div>
+
+              {aiCmdStatus && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
+                  {aiCmdStatus}
+                </div>
+              )}
+
+              {/* Natural Language Prompt Input */}
+              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-5 space-y-4 font-mono text-xs">
+                <label className="font-bold text-white block">Describe the Command for Kyro AI to Build</label>
+                <textarea
+                  rows={3}
+                  value={aiCmdPrompt}
+                  onChange={(e) => setAiCmdPrompt(e.target.value)}
+                  placeholder="e.g. Create a /kyro-weather command that fetches 5-day forecasts or /kyro-crypto that looks up Solana prices..."
+                  className="w-full bg-[#08090d] border border-[#242b3d] text-amber-300 rounded-xl p-3.5 focus:outline-none resize-none"
+                />
+
+                <button
+                  onClick={handleGenerateAiCommand}
+                  disabled={isGeneratingAiCmd}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isGeneratingAiCmd ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                  {isGeneratingAiCmd ? "AI Synthesizing & Registering Command..." : "🤖 Instruct Kyro AI to Create Command"}
+                </button>
+              </div>
+
+              {/* Active Commands */}
+              <div className="space-y-2 font-mono text-xs">
+                <h3 className="font-bold text-slate-300">Registered AI Slash Commands</h3>
+                {slashCommands.map((cmd, idx) => (
+                  <div key={idx} className="bg-[#121522] border border-[#242b3d] rounded-xl p-3 flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-amber-400">/{cmd.name}</span>
+                      <span className="text-slate-400 ml-3">{cmd.description}</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-semibold">
+                      Live on Discord REST v10
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

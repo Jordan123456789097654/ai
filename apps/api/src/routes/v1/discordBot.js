@@ -98,11 +98,81 @@ router.get("/rank/:author", (req, res) => {
   return res.json(rankStats);
 });
 
-// POST /v1/discord/tickets - Support Ticket Desk Channel Generator
-router.post("/tickets", async (req, res) => {
-  const { author = "DiscordUser", topic = "Technical Help" } = req.body || {};
-  const ticket = await discordBot.createTicket(author, topic);
+// GET /v1/discord/tickets - List all tickets
+router.get("/tickets", (req, res) => {
+  return res.json({ tickets: discordBot.getTickets() });
+});
+
+// POST /v1/discord/tickets/reply - Admin Reply to Ticket
+router.post("/tickets/reply", (req, res) => {
+  const { ticketId, sender = "Admin", text } = req.body || {};
+  if (!ticketId || !text) return res.status(400).json({ error: "ticketId and text required" });
+  const ticket = discordBot.replyTicket(ticketId, sender, text);
   return res.json({ success: true, ticket });
+});
+
+// POST /v1/discord/tickets/claim - Admin Claim Ticket
+router.post("/tickets/claim", (req, res) => {
+  const { ticketId, adminName = "Platform Owner" } = req.body || {};
+  const ticket = discordBot.claimTicket(ticketId, adminName);
+  return res.json({ success: true, ticket });
+});
+
+// POST /v1/discord/tickets/close - Admin Close Ticket
+router.post("/tickets/close", (req, res) => {
+  const { ticketId, adminName = "Platform Owner" } = req.body || {};
+  const ticket = discordBot.closeTicket(ticketId, adminName);
+  return res.json({ success: true, ticket });
+});
+
+// GET & POST /v1/discord/channels - Channel Management
+router.get("/channels", (req, res) => {
+  return res.json({ channels: discordBot.getChannels() });
+});
+
+router.post("/channels/create", (req, res) => {
+  const { name, category, type } = req.body || {};
+  if (!name) return res.status(400).json({ error: "Channel name required" });
+  const newChan = discordBot.createChannel({ name, category, type });
+  return res.json({ success: true, channel: newChan });
+});
+
+router.post("/channels/delete", (req, res) => {
+  const { name } = req.body || {};
+  const channels = discordBot.deleteChannel(name);
+  return res.json({ success: true, channels });
+});
+
+router.post("/channels/toggle", (req, res) => {
+  const { name, listening } = req.body || {};
+  const chan = discordBot.toggleChannelListening(name, listening);
+  return res.json({ success: true, channel: chan });
+});
+
+// GET & POST /v1/discord/giveaways - Giveaways Manager
+router.get("/giveaways", (req, res) => {
+  return res.json({ giveaways: discordBot.getGiveaways() });
+});
+
+router.post("/giveaways/create", (req, res) => {
+  const { title, prize, channel, durationHours } = req.body || {};
+  if (!title || !prize) return res.status(400).json({ error: "title and prize required" });
+  const giveaway = discordBot.createGiveaway({ title, prize, channel, durationHours });
+  return res.json({ success: true, giveaway });
+});
+
+router.post("/giveaways/end", (req, res) => {
+  const { giveawayId } = req.body || {};
+  const giveaway = discordBot.endGiveaway(giveawayId);
+  return res.json({ success: true, giveaway });
+});
+
+// POST /v1/discord/ai-create-command - AI Dynamic Self-Command Creator
+router.post("/ai-create-command", async (req, res) => {
+  const { prompt } = req.body || {};
+  if (!prompt) return res.status(400).json({ error: "prompt required" });
+  const command = await discordBot.generateAndRegisterCommand(prompt);
+  return res.json({ success: true, command });
 });
 
 // POST /v1/discord/link-account - Link Discord ID to Kyro account for 3x Rate Limit Boost (60 req/min)

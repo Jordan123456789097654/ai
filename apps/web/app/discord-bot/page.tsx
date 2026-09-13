@@ -1801,12 +1801,31 @@ export default function OwnerDiscordSuitePage() {
                   />
                 </div>
 
-                <button
-                  onClick={handleLinkDiscordAccount}
-                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-colors shadow-md"
-                >
-                  🔗 Link Account & Upgrade Rate Limit to 60 req/min
-                </button>
+                {/* 1-Click Official Discord OAuth2 Connect Button */}
+                <div className="pt-2 border-t border-[#242b3d] space-y-3">
+                  <div className="text-slate-300 font-bold">1-Click Official OAuth2 Authentication:</div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const baseUrl = getApiBaseUrl();
+                        const redirectUri = `${window.location.origin}/auth/discord/callback`;
+                        const res = await fetch(`${baseUrl}/v1/discord/oauth/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`);
+                        if (res.ok) {
+                          const data = await res.json();
+                          window.location.href = data.authUrl;
+                        }
+                      } catch (err: any) {
+                        alert(`OAuth2 launch failed: ${err.message}`);
+                      }
+                    }}
+                    className="w-full py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 text-xs"
+                  >
+                    <Link2 className="w-4 h-4" /> 🔗 Connect Discord Account via Official OAuth2 (3x Rate Limit Boost)
+                  </button>
+                  <p className="text-[10px] text-slate-500 text-center">
+                    Redirects to Discord's official consent screen (`scope=identify`). Redirect URI: `{typeof window !== "undefined" ? window.location.origin : ""}/auth/discord/callback`
+                  </p>
+                </div>
               </div>
             </div>
           </div>

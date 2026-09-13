@@ -29,9 +29,14 @@ export async function enforceRateLimit(request, reply) {
     return;
   }
 
-  const limit = isGuest
+  let limit = isGuest
     ? env.rateLimits.guest
     : apiKey?.rateLimitOverride ?? TIER_LIMITS[user?.tier] ?? TIER_LIMITS.free;
+
+  // 3x Rate limit boost (60 req/min) for accounts linked to Discord
+  if (user?.discordId || user?.discordLinked) {
+    limit = Math.max(limit, 60);
+  }
 
   // Use a distinct bucket key per auth type so API key, session, and guest
   // quotas are tracked independently.

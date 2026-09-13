@@ -29,7 +29,16 @@ import {
   Trash2,
   Palette,
   Hash,
-  Crown
+  Crown,
+  Star,
+  Ticket,
+  Rss,
+  AlertTriangle,
+  Link2,
+  Users,
+  Bell,
+  MessageCircle,
+  FileText
 } from "lucide-react";
 import { getApiBaseUrl } from "../../lib/api";
 
@@ -51,7 +60,7 @@ export default function OwnerDiscordSuitePage() {
   const [authError, setAuthError] = useState<string>("");
 
   // --- Active Tab State ---
-  const [activeTab, setActiveTab] = useState<"connection" | "auto_reply" | "server_setup" | "embed_builder" | "slash_commands">("connection");
+  const [activeTab, setActiveTab] = useState<"connection" | "auto_reply" | "server_setup" | "embed_builder" | "slash_commands" | "automod" | "leveling" | "tickets" | "webhooks" | "admin">("connection");
 
   // --- Bot Connection State ---
   const [botToken, setBotToken] = useState<string>("");
@@ -94,6 +103,144 @@ export default function OwnerDiscordSuitePage() {
   const [newCmdName, setNewCmdName] = useState<string>("");
   const [newCmdDesc, setNewCmdDesc] = useState<string>("");
   const [slashRegisterStatus, setSlashRegisterStatus] = useState<string>("");
+
+  // --- 🛡️ Auto-Mod & Security Controls State ---
+  const [autoModEnabled, setAutoModEnabled] = useState<boolean>(true);
+  const [secretKeyScan, setSecretKeyScan] = useState<boolean>(true);
+  const [toxicitySensitivity, setToxicitySensitivity] = useState<string>("HIGH");
+  const [antiSpamLinks, setAntiSpamLinks] = useState<boolean>(true);
+  const [autoModStatus, setAutoModStatus] = useState<string>("");
+
+  // --- ⭐ Member Leveling & XP State ---
+  const [xpMultiplier, setXpMultiplier] = useState<number>(1.5);
+  const [leaderboard, setLeaderboard] = useState<Array<{ rank: number; user: string; xp: number; level: number; messages: number }>>([
+    { rank: 1, user: "DevOpsPro", xp: 2800, level: 16, messages: 110 },
+    { rank: 2, user: "CodeWizard", xp: 1250, level: 8, messages: 52 },
+    { rank: 3, user: "DiscordUser", xp: 350, level: 3, messages: 14 },
+  ]);
+  const [levelingStatus, setLevelingStatus] = useState<string>("");
+
+  // --- 🎫 Support Ticket Desk State ---
+  const [ticketTopic, setTicketTopic] = useState<string>("API & Code Debugging Assistance");
+  const [createdTickets, setCreatedTickets] = useState<Array<any>>([]);
+  const [ticketStatus, setTicketStatus] = useState<string>("");
+
+  // --- ⚙️ Webhooks & RSS Feeds State ---
+  const [rssFeedName, setRssFeedName] = useState<string>("Tech News RSS");
+  const [rssFeedUrl, setRssFeedUrl] = useState<string>("https://news.ycombinator.com/rss");
+  const [targetRssChannel, setTargetRssChannel] = useState<string>("#tech-news");
+  const [webhookUrl, setWebhookUrl] = useState<string>("");
+  const [rssStatus, setRssStatus] = useState<string>("");
+
+  // --- 👑 Admin Utilities & Lockdown State ---
+  const [lockdownMode, setLockdownMode] = useState<boolean>(false);
+  const [broadcastMessage, setBroadcastMessage] = useState<string>("");
+  const [adminStatus, setAdminStatus] = useState<string>("");
+
+  // --- 🔗 Discord Account Linking State ---
+  const [discordTag, setDiscordTag] = useState<string>("");
+  const [discordId, setDiscordId] = useState<string>("");
+  const [linkStatus, setLinkStatus] = useState<string>("");
+
+  // Handlers for New Features
+  const handleSaveAutoMod = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/server-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoModEnabled, secretKeyScan, toxicitySensitivity, antiSpamLinks }),
+      });
+      if (res.ok) setAutoModStatus("✅ Auto-Mod rules & Secret Key Scanner updated on Discord Bot.");
+    } catch (err: any) {
+      setAutoModStatus(`⚠️ Error saving Auto-Mod rules: ${err.message}`);
+    }
+  };
+
+  const handleSaveLeveling = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/server-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ xpMultiplier }),
+      });
+      if (res.ok) setLevelingStatus(`✅ Leveling XP Multiplier set to ${xpMultiplier}x!`);
+    } catch (err: any) {
+      setLevelingStatus(`⚠️ Error saving XP multiplier: ${err.message}`);
+    }
+  };
+
+  const handleCreateSupportTicket = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/tickets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ author: "AdminTester", topic: ticketTopic }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCreatedTickets((prev) => [data.ticket, ...prev]);
+        setTicketStatus(`✅ Ticket ${data.ticket.channelName} generated with instant AI auto-draft!`);
+      }
+    } catch (err: any) {
+      setTicketStatus(`⚠️ Error generating ticket: ${err.message}`);
+    }
+  };
+
+  const handleSaveRssFeed = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/server-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rssFeeds: [{ name: rssFeedName, url: rssFeedUrl, channel: targetRssChannel }],
+        }),
+      });
+      if (res.ok) setRssStatus(`✅ RSS feed "${rssFeedName}" registered for channel ${targetRssChannel}!`);
+    } catch (err: any) {
+      setRssStatus(`⚠️ Error adding RSS feed: ${err.message}`);
+    }
+  };
+
+  const handleToggleLockdown = async () => {
+    const nextState = !lockdownMode;
+    setLockdownMode(nextState);
+    try {
+      const baseUrl = getApiBaseUrl();
+      await fetch(`${baseUrl}/v1/discord/server-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lockdownMode: nextState }),
+      });
+      setAdminStatus(nextState ? "🔒 Server Lockdown ENABLED. Kyro Bot interactions suspended." : "🔓 Server Lockdown DISABLE. Kyro Bot normal operations resumed.");
+    } catch (err: any) {
+      setAdminStatus(`⚠️ Error updating lockdown state: ${err.message}`);
+    }
+  };
+
+  const handleLinkDiscordAccount = async () => {
+    if (!discordTag || !discordId) {
+      alert("Please enter both your Discord Tag and Discord ID.");
+      return;
+    }
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/link-account`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discordTag, discordId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLinkStatus(`🎉 ${data.message}`);
+      }
+    } catch (err: any) {
+      setLinkStatus(`⚠️ Linking error: ${err.message}`);
+    }
+  };
 
   // Verify Owner Auth
   const handleAuthenticateOwner = () => {
@@ -301,7 +448,7 @@ export default function OwnerDiscordSuitePage() {
           </div>
 
           {/* Navigation Sub-Tabs */}
-          <div className="flex bg-[#121522] border border-[#242b3d] rounded-xl p-1 text-xs font-mono">
+          <div className="flex flex-wrap bg-[#121522] border border-[#242b3d] rounded-xl p-1 text-xs font-mono gap-1">
             <button
               onClick={() => setActiveTab("connection")}
               className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
@@ -311,12 +458,44 @@ export default function OwnerDiscordSuitePage() {
               <Bot className="w-3.5 h-3.5" /> Bot Setup
             </button>
             <button
+              onClick={() => setActiveTab("automod")}
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === "automod" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" /> Auto-Mod & Security
+            </button>
+            <button
+              onClick={() => setActiveTab("leveling")}
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === "leveling" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Star className="w-3.5 h-3.5" /> Leveling & XP
+            </button>
+            <button
+              onClick={() => setActiveTab("tickets")}
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === "tickets" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Ticket className="w-3.5 h-3.5" /> Support Tickets
+            </button>
+            <button
+              onClick={() => setActiveTab("webhooks")}
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === "webhooks" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Rss className="w-3.5 h-3.5" /> Webhooks & RSS
+            </button>
+            <button
               onClick={() => setActiveTab("auto_reply")}
               className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
                 activeTab === "auto_reply" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
               }`}
             >
-              <Zap className="w-3.5 h-3.5" /> Auto-AI Responding
+              <Zap className="w-3.5 h-3.5" /> Auto-AI
             </button>
             <button
               onClick={() => setActiveTab("server_setup")}
@@ -324,7 +503,7 @@ export default function OwnerDiscordSuitePage() {
                 activeTab === "server_setup" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
               }`}
             >
-              <Hash className="w-3.5 h-3.5" /> Server Auto-Setup
+              <Hash className="w-3.5 h-3.5" /> Server Provisioner
             </button>
             <button
               onClick={() => setActiveTab("embed_builder")}
@@ -332,7 +511,7 @@ export default function OwnerDiscordSuitePage() {
                 activeTab === "embed_builder" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
               }`}
             >
-              <Palette className="w-3.5 h-3.5" /> Rich Embed Builder
+              <Palette className="w-3.5 h-3.5" /> Rich Embeds
             </button>
             <button
               onClick={() => setActiveTab("slash_commands")}
@@ -341,6 +520,14 @@ export default function OwnerDiscordSuitePage() {
               }`}
             >
               <Terminal className="w-3.5 h-3.5" /> Slash Commands
+            </button>
+            <button
+              onClick={() => setActiveTab("admin")}
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === "admin" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Crown className="w-3.5 h-3.5" /> Owner Admin
             </button>
           </div>
         </div>
@@ -708,6 +895,329 @@ export default function OwnerDiscordSuitePage() {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: 🛡️ AI Auto-Moderator & Security Guard */}
+        {activeTab === "automod" && (
+          <div className="space-y-6">
+            <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
+                <div>
+                  <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-amber-400" /> AI Auto-Moderator & Security Guard
+                  </h2>
+                  <p className="text-xs text-slate-400">Scan chat messages for secret API key leaks, spam link floods, and toxic keywords in real-time</p>
+                </div>
+                <button
+                  onClick={handleSaveAutoMod}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-colors shadow-lg"
+                >
+                  🛡️ Save Auto-Mod Rules
+                </button>
+              </div>
+
+              {autoModStatus && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
+                  {autoModStatus}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">Enable AI Auto-Moderator</span>
+                    <input
+                      type="checkbox"
+                      checked={autoModEnabled}
+                      onChange={(e) => setAutoModEnabled(e.target.checked)}
+                      className="w-4 h-4 accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+                  <p className="text-slate-400 text-[11px]">Automatically deletes policy-violating messages and warns users.</p>
+                </div>
+
+                <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">Secret API Key Leak Guard</span>
+                    <input
+                      type="checkbox"
+                      checked={secretKeyScan}
+                      onChange={(e) => setSecretKeyScan(e.target.checked)}
+                      className="w-4 h-4 accent-amber-500 cursor-pointer"
+                    />
+                  </div>
+                  <p className="text-slate-400 text-[11px]">Detects and revokes exposed OpenAI, GitHub, or Discord tokens (`sk-...`, `ghp_...`).</p>
+                </div>
+              </div>
+
+              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3 text-xs font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-white">Toxicity Scanning Sensitivity</span>
+                  <select
+                    value={toxicitySensitivity}
+                    onChange={(e) => setToxicitySensitivity(e.target.value)}
+                    className="bg-[#08090d] border border-[#242b3d] text-amber-300 rounded-lg px-3 py-1.5 focus:outline-none"
+                  >
+                    <option value="LOW">Low (Severe Violations Only)</option>
+                    <option value="MEDIUM">Medium (Balanced)</option>
+                    <option value="HIGH">High (Strict AI Filtering)</option>
+                  </select>
+                </div>
+                <p className="text-slate-400 text-[11px]">All auto-mod actions are dispatched to `#automod-logs` channel.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: ⭐ Member Leveling, XP & Server Economy */}
+        {activeTab === "leveling" && (
+          <div className="space-y-6">
+            <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
+                <div>
+                  <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                    <Star className="w-5 h-5 text-amber-400" /> Member Leveling & Server Leaderboard
+                  </h2>
+                  <p className="text-xs text-slate-400">Chatting with Kyro AI earns XP. Auto-assign level roles (`⭐ Kyro Scholar`, `👑 Kyro Master`).</p>
+                </div>
+                <button
+                  onClick={handleSaveLeveling}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-colors shadow-lg"
+                >
+                  ⭐ Update XP Multiplier
+                </button>
+              </div>
+
+              {levelingStatus && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
+                  {levelingStatus}
+                </div>
+              )}
+
+              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3 text-xs font-mono">
+                <label className="font-bold text-white block">XP Rate Multiplier</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="1.0"
+                    max="5.0"
+                    step="0.5"
+                    value={xpMultiplier}
+                    onChange={(e) => setXpMultiplier(parseFloat(e.target.value))}
+                    className="flex-1 accent-amber-500"
+                  />
+                  <span className="text-amber-400 font-bold px-3 py-1 bg-[#08090d] rounded-lg border border-[#242b3d]">{xpMultiplier}x XP</span>
+                </div>
+              </div>
+
+              {/* Leaderboard Table */}
+              <div className="border border-[#242b3d] rounded-xl overflow-hidden font-mono text-xs">
+                <div className="bg-[#141724] px-4 py-3 font-bold text-slate-300 flex justify-between">
+                  <span>Discord Leaderboard (`/kyro-top`)</span>
+                  <span className="text-amber-400">Live XP Rank</span>
+                </div>
+                <div className="divide-y divide-[#1b202e] bg-[#08090d]">
+                  {leaderboard.map((m) => (
+                    <div key={m.rank} className="px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 text-slate-400 font-bold">#{m.rank}</span>
+                        <span className="text-white font-bold">@{m.user}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="text-purple-400">Level {m.level}</span>
+                        <span className="text-amber-300 font-bold">{m.xp} XP</span>
+                        <span className="text-slate-400">{m.messages} msgs</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 8: 🎫 Support Ticket Desk */}
+        {activeTab === "tickets" && (
+          <div className="space-y-6">
+            <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
+                <div>
+                  <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                    <Ticket className="w-5 h-5 text-amber-400" /> AI Support Ticket & Help Desk
+                  </h2>
+                  <p className="text-xs text-slate-400">Instantly generate private ticket channels (`#ticket-101`) with Kyro AI auto-drafted answers</p>
+                </div>
+                <button
+                  onClick={handleCreateSupportTicket}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-colors shadow-lg"
+                >
+                  🎫 Generate Support Ticket
+                </button>
+              </div>
+
+              {ticketStatus && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
+                  {ticketStatus}
+                </div>
+              )}
+
+              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3 text-xs font-mono">
+                <label className="font-bold text-white block">Default Support Category Topic</label>
+                <input
+                  type="text"
+                  value={ticketTopic}
+                  onChange={(e) => setTicketTopic(e.target.value)}
+                  className="w-full bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2.5 focus:outline-none"
+                />
+              </div>
+
+              {/* Created Ticket Logs */}
+              {createdTickets.length > 0 && (
+                <div className="space-y-3 font-mono text-xs">
+                  <h3 className="font-bold text-slate-300">Generated Support Channels</h3>
+                  {createdTickets.map((t, idx) => (
+                    <div key={idx} className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-2">
+                      <div className="flex justify-between items-center text-amber-400 font-bold">
+                        <span>{t.channelName} (ID: {t.ticketId})</span>
+                        <span className="text-xs text-emerald-400">Status: {t.status}</span>
+                      </div>
+                      <p className="text-slate-300 text-[11px] bg-[#08090d] p-3 rounded-lg border border-[#1b202e]">{t.aiDraft}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 9: ⚙️ Webhooks & RSS Feeds */}
+        {activeTab === "webhooks" && (
+          <div className="space-y-6">
+            <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
+                <div>
+                  <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                    <Rss className="w-5 h-5 text-amber-400" /> Webhooks, RSS Feeds & Automated Posts
+                  </h2>
+                  <p className="text-xs text-slate-400">Post automated tech RSS news to `#tech-news` and receive custom API webhooks</p>
+                </div>
+                <button
+                  onClick={handleSaveRssFeed}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-colors shadow-lg"
+                >
+                  ⚙️ Register RSS Poster
+                </button>
+              </div>
+
+              {rssStatus && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
+                  {rssStatus}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3">
+                  <label className="font-bold text-white block">RSS Feed Name</label>
+                  <input
+                    type="text"
+                    value={rssFeedName}
+                    onChange={(e) => setRssFeedName(e.target.value)}
+                    className="w-full bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2 focus:outline-none"
+                  />
+                </div>
+
+                <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3">
+                  <label className="font-bold text-white block">Target Channel</label>
+                  <input
+                    type="text"
+                    value={targetRssChannel}
+                    onChange={(e) => setTargetRssChannel(e.target.value)}
+                    className="w-full bg-[#08090d] border border-[#242b3d] text-cyan-300 rounded-xl px-3.5 py-2 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-4 space-y-3 text-xs font-mono">
+                <label className="font-bold text-white block">RSS Feed URL</label>
+                <input
+                  type="text"
+                  value={rssFeedUrl}
+                  onChange={(e) => setRssFeedUrl(e.target.value)}
+                  className="w-full bg-[#08090d] border border-[#242b3d] text-amber-300 rounded-xl px-3.5 py-2 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 10: 👑 Owner & Server Admin Command Utilities */}
+        {activeTab === "admin" && (
+          <div className="space-y-6">
+            <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
+                <div>
+                  <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                    <Crown className="w-5 h-5 text-amber-400" /> Platform Owner & Lockdown Suite
+                  </h2>
+                  <p className="text-xs text-slate-400">Emergency `/kyro-lockdown`, server broadcasts, and Discord account rate-limit boost linking</p>
+                </div>
+                <button
+                  onClick={handleToggleLockdown}
+                  className={`px-5 py-2.5 font-bold rounded-xl text-xs font-mono transition-colors shadow-lg ${
+                    lockdownMode ? "bg-emerald-500 text-slate-950" : "bg-rose-500 text-white"
+                  }`}
+                >
+                  {lockdownMode ? "🔓 Disable Lockdown" : "🔒 Emergency Server Lockdown"}
+                </button>
+              </div>
+
+              {adminStatus && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
+                  {adminStatus}
+                </div>
+              )}
+
+              {/* Discord Account Linking Banner / Box */}
+              <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-5 space-y-4 font-mono text-xs">
+                <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                  <Link2 className="w-5 h-5" /> 🔗 Link Discord Account for 3x Rate Limit (60 req/min)
+                </div>
+                <p className="text-slate-400 text-[11px]">
+                  Linking your Discord user tag and ID instantly increases your free tier rate limit from 20 req/min to 60 req/min across Kyro AI.
+                </p>
+
+                {linkStatus && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl">
+                    {linkStatus}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    placeholder="Discord Handle (e.g. Jordan#1234)"
+                    value={discordTag}
+                    onChange={(e) => setDiscordTag(e.target.value)}
+                    className="bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Discord User ID (e.g. 1029384756657)"
+                    value={discordId}
+                    onChange={(e) => setDiscordId(e.target.value)}
+                    className="bg-[#08090d] border border-[#242b3d] text-white rounded-xl px-3.5 py-2 focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  onClick={handleLinkDiscordAccount}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition-colors shadow-md"
+                >
+                  🔗 Link Account & Upgrade Rate Limit to 60 req/min
+                </button>
               </div>
             </div>
           </div>

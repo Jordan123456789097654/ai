@@ -37,6 +37,8 @@ export const env = {
 
   apiKeyPrefix: process.env.API_KEY_PREFIX || "kyro_sk_live_",
 
+  discordBotToken: process.env.DISCORD_BOT_TOKEN || "",
+
   // Custom auth email delivery
   resendApiKey: process.env.RESEND_API_KEY,
   emailFrom: process.env.EMAIL_FROM || "Kyro <onboarding@resend.dev>",

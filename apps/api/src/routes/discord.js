@@ -4,6 +4,33 @@ import { callInference } from "../services/inferenceClient.js";
 import { discordBot } from "../services/discordBot.js";
 import { validateAndStartBot, stopHostedBot, getActiveHostedBots } from "../services/discordBotService.js";
 
+const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
+
+function verifyDiscordSignature(rawBody, signature, timestamp, publicKeyHex) {
+  if (!signature || !timestamp || !publicKeyHex) return false;
+  try {
+    const cleanKey = publicKeyHex.trim();
+    if (cleanKey.length !== 64) return false;
+
+    const message = Buffer.from(timestamp + rawBody);
+    const sigBuffer = Buffer.from(signature, "hex");
+    const keyBuffer = Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(cleanKey, "hex")]);
+
+    return crypto.verify(
+      null,
+      message,
+      {
+        key: keyBuffer,
+        format: "der",
+        type: "spki",
+      },
+      sigBuffer
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Fastify Discord Bot Routes & Gateway API Endpoints
  */
@@ -12,22 +39,15 @@ export default async function discordRoute(fastify) {
   const handleDiscordInteraction = async (request, reply) => {
     const signature = request.headers["x-signature-ed25519"];
     const timestamp = request.headers["x-signature-timestamp"];
-    const rawBody = typeof request.body === "string" ? request.body : JSON.stringify(request.body || {});
+    const rawBody = request.body?._rawBody || (typeof request.body === "string" ? request.body : JSON.stringify(request.body || {}));
 
-    // Optional Ed25519 signature verification if DISCORD_PUBLIC_KEY is configured
-    if (env.discordPublicKey && signature && timestamp) {
-      try {
-        const isVerified = crypto.verify(
-          null,
-          Buffer.from(timestamp + rawBody),
-          Buffer.from(`-----BEGIN PUBLIC KEY-----\nMCowKOZIzj0CAQYDK2VwAyEA${env.discordPublicKey}\n-----END PUBLIC KEY-----`),
-          Buffer.from(signature, "hex")
-        );
-        if (!isVerified) {
-          return reply.code(401).send({ error: "Invalid interaction signature" });
-        }
-      } catch {
-        // Fallthrough if public key format mismatch
+    const publicKey = env.discordPublicKey || process.env.DISCORD_PUBLIC_KEY;
+
+    // Verify Ed25519 signature if public key is configured
+    if (signature && timestamp && publicKey) {
+      const isVerified = verifyDiscordSignature(rawBody, signature, timestamp, publicKey);
+      if (!isVerified) {
+        return reply.code(401).send({ error: "Invalid interaction signature" });
       }
     }
 
@@ -35,7 +55,7 @@ export default async function discordRoute(fastify) {
 
     // Type 1: PING from Discord for endpoint URL verification in Developer Portal
     if (type === 1) {
-      return reply.code(200).send({ type: 1 });
+      return reply.code(200).header("Content-Type", "application/json").send({ type: 1 });
     }
 
     const userObj = member?.user || user;

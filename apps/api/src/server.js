@@ -23,6 +23,20 @@ import { discordBot } from "./services/discordBot.js";
 
 const fastify = Fastify({ logger: true, trustProxy: true });
 
+// Preserve raw HTTP body for Discord Ed25519 webhook signature verification
+fastify.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
+  try {
+    const json = JSON.parse(body || "{}");
+    if (json && typeof json === "object") {
+      json._rawBody = body;
+    }
+    done(null, json);
+  } catch (err) {
+    err.statusCode = 400;
+    done(err, undefined);
+  }
+});
+
 // ── Global CORS Preflight & Header Hook ──────────────────────────────────────
 // Intercepts preflight OPTIONS and injects CORS headers into ALL responses
 fastify.addHook("onRequest", (request, reply, done) => {

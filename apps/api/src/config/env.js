@@ -39,12 +39,12 @@ export const env = {
 
   discordBotToken: process.env.DISCORD_BOT_TOKEN || "",
   discordClientId: process.env.DISCORD_CLIENT_ID || "1548576579872100374",
-  discordClientSecret: process.env.DISCORD_CLIENT_SECRET || "",
+  discordClientSecret: process.env.DISCORD_CLIENT_SECRET || "2gbo9ErQEC00qhNlu2zvM227SB2JYMZt",
 
   // Custom auth email delivery
   resendApiKey: process.env.RESEND_API_KEY,
   emailFrom: process.env.EMAIL_FROM || "Kyro <onboarding@resend.dev>",
-  appUrl: process.env.APP_URL || "http://localhost:3000",
+  appUrl: process.env.APP_URL || "https://kyro-web-rodh.onrender.com",
 
   rateLimits: {
     free: Number(process.env.RATE_LIMIT_FREE || 20),

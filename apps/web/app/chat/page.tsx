@@ -1,1209 +1,623 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
+import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import {
+  Sparkles,
+  UserCheck,
+  Globe,
+  Swords,
+  Bot,
+  Brain,
+  Key,
+  BookOpen,
+  Share2,
+  Plus,
+  MessageSquare,
+  Trash2,
   Send,
   Paperclip,
-  Archive,
-  ChevronDown,
-  Sparkles,
-  X,
   Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
-  Globe,
-  PanelRight,
-  UserCheck,
-  Share2,
-  Swords,
-  BookOpen,
-  Terminal,
+  Copy,
   Check,
-  Bot,
-  HelpCircle,
-  Github,
+  ChevronDown,
+  ChevronRight,
+  Code2,
+  Cpu,
+  Layers,
+  Wrench,
   Search,
-  Key,
-  Brain,
+  X,
+  PanelLeft,
+  Settings,
+  HelpCircle,
+  ExternalLink
 } from "lucide-react";
-import Link from "next/link";
-import JSZip from "jszip";
-import { supabase, getSessionToken } from "../../lib/supabaseClient";
-import { apiFetch, getApiBaseUrl } from "../../lib/api";
-import ChatSidebar from "../../components/ChatSidebar";
-import CodeBlock from "../../components/CodeBlock";
 
-type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
+interface Message {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  thinking?: string;
+  timestamp: string;
+  isStreaming?: boolean;
+}
 
-const MODELS = [
-  { id: "kyro-coder-pro", name: "Kyro Coder Pro (32B)", desc: "Specialized code generation & refactoring" },
-  { id: "kyro-flash-8b", name: "Kyro Flash (8B)", desc: "Ultra-fast response model" },
-  { id: "kyro-ultra-70b", name: "Kyro Ultra (70B)", desc: "Deep reasoning & coding" },
-  { id: "kyro-mixtral-8x7b", name: "Kyro Mixtral (8x7B)", desc: "Expanded context window" },
-  { id: "kyro-gemma-9b", name: "Kyro Gemma (9B)", desc: "Precise instruction model" },
-];
-
-const PERSONAS = [
-  { id: "default", name: "Default Assistant", prompt: "" },
-  { id: "developer", name: "Full-Stack Dev", prompt: "You are an expert Full-Stack Software Engineer. Write clean, production-grade, modular code with concise explanations." },
-  { id: "writer", name: "Tech Copywriter", prompt: "You are an elite technology copywriter. Write engaging, crisp, clear, and persuasive documentation, blogs, and landing page copy." },
-  { id: "security", name: "Security Auditor", prompt: "You are a senior Cybersecurity Auditor. Analyze code for vulnerabilities, OWASP Top 10 risks, and suggest secure hardening fixes." },
-  { id: "architect", name: "SQL & Systems Architect", prompt: "You are a Principal Database & System Architect. Design optimal database schemas, indexes, and scalable infrastructure patterns." },
-];
-
-const SLASH_COMMANDS = [
-  { cmd: "/refactor", label: "Refactor Code", desc: "Clean up code for modularity & performance", text: "Refactor and optimize this code snippet for performance and readability:\n\n" },
-  { cmd: "/explain", label: "Explain Step-by-Step", desc: "Break down logic step by step", text: "Explain how this code or concept works step-by-step with clear examples:\n\n" },
-  { cmd: "/unit-test", label: "Write Unit Tests", desc: "Generate test suite covering edge cases", text: "Write comprehensive unit tests covering edge cases and invalid inputs for:\n\n" },
-  { cmd: "/security", label: "Security Audit", desc: "Check for OWASP Top 10 vulnerabilities", text: "Perform a security audit looking for potential vulnerabilities and OWASP risks in:\n\n" },
-  { cmd: "/summarize", label: "Executive Summary", desc: "Summarize context concisely", text: "Provide a concise executive summary with key takeaways of:\n\n" },
-];
-
-const PROMPT_TEMPLATES = [
-  { title: "REST API Endpoint Template", prompt: "Design a clean RESTful API endpoint specification including request/response schemas, HTTP status codes, and TypeScript interfaces." },
-  { title: "Database Migration Script", prompt: "Write a SQL migration script with forward and rollback logic, optimal indexes, and foreign key constraints." },
-  { title: "Docker Container Setup", prompt: "Create a multi-stage Dockerfile optimized for small image size, security, and production deployment." },
-  { title: "React Component & Hooks", prompt: "Build a responsive React component using Tailwind CSS, proper accessibility (aria) tags, and clean custom hooks." },
-];
+interface Thread {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
 
 export default function ChatPage() {
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState("kyro-flash-8b");
-  const [selectedPersona, setSelectedPersona] = useState("default");
-  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<{ name: string; content: string }[]>([]);
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
-  const [isPersonaDropdownOpen, setIsPersonaDropdownOpen] = useState(false);
-  const [copiedShare, setCopiedShare] = useState(false);
+  // --- Sidebar & Layout State ---
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [threads, setThreads] = useState<Thread[]>([
+    { id: "1", title: "VEX IQ Color Sorting Autonomous", updatedAt: "10 mins ago" },
+    { id: "2", title: "Blender Procedural Spur Gear", updatedAt: "2 hours ago" },
+    { id: "3", title: "OpenAI SDK Proxy Config in Python", updatedAt: "Yesterday" },
+  ]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
-  // Model Arena Mode State
-  const [isArenaMode, setIsArenaMode] = useState(false);
-  const [arenaModelB, setArenaModelB] = useState("kyro-ultra-70b");
-  const [arenaMessagesB, setArenaMessagesB] = useState<ChatMessage[]>([]);
-  const [arenaStatsA, setArenaStatsA] = useState<{ latencyMs: number; tokens: number } | null>(null);
-  const [arenaStatsB, setArenaStatsB] = useState<{ latencyMs: number; tokens: number } | null>(null);
+  // --- Top Controls Toolbar State (Matching Reference Image) ---
+  const [selectedModel, setSelectedModel] = useState<string>("kyro-flash-8b");
+  const [selectedAssistant, setSelectedAssistant] = useState<string>("default");
+  const [searchActive, setSearchActive] = useState<boolean>(false);
+  const [arenaActive, setArenaActive] = useState<boolean>(false);
+  const [agentActive, setAgentActive] = useState<boolean>(false);
+  const [thinkingActive, setThinkingActive] = useState<boolean>(true);
+  
+  // Modals
+  const [showProKeyModal, setShowProKeyModal] = useState<boolean>(false);
+  const [showPromptsModal, setShowPromptsModal] = useState<boolean>(false);
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [copiedShare, setCopiedShare] = useState<boolean>(false);
+  const [copiedApiKey, setCopiedApiKey] = useState<boolean>(false);
 
-  // Autonomous Agent & Clarification Modal State
-  const [isAgentMode, setIsAgentMode] = useState(false);
-  const [showThinkingProcess, setShowThinkingProcess] = useState(true);
+  // Dropdown menus
+  const [showModelMenu, setShowModelMenu] = useState<boolean>(false);
+  const [showAssistantMenu, setShowAssistantMenu] = useState<boolean>(false);
 
-  function parseMessageContent(content: string) {
-    if (!content) return { thinking: null, response: "" };
-    const thinkMatch = content.match(/<think>([\s\S]*?)(?:<\/think>|$)/i);
-    if (thinkMatch) {
-      const thinking = thinkMatch[1].trim();
-      const response = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/i, "").trim();
-      return { thinking, response };
-    }
-    return { thinking: null, response: content };
-  }
+  // --- Messages & Chat Input State ---
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputPrompt, setInputPrompt] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({});
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
-  const [showClarifyModal, setShowClarifyModal] = useState(false);
-  const [pendingPrompt, setPendingPrompt] = useState("");
-  const [clarifyAnswers, setClarifyAnswers] = useState({
-    target: "REST API",
-    framework: "TypeScript / Node.js",
-    database: "PostgreSQL / Supabase",
-  });
-
-  // Modals & Popups
-  const [showPromptLibrary, setShowPromptLibrary] = useState(false);
-  const [showSearchModal, setShowSearchModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-
+  // Scroll to bottom on new messages
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setShowSearchModal((prev) => !prev);
-      }
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isGenerating]);
+
+  // Model Options
+  const MODELS = [
+    { id: "kyro-flash-8b", name: "Kyro Flash (8B)", desc: "Ultra-fast instant completions & general chat" },
+    { id: "kyro-ultra-70b", name: "Kyro Ultra (70B)", desc: "High reasoning, complex logic & architecture" },
+    { id: "kyro-coder-pro", name: "Kyro Coder Pro", desc: "Full-stack code generation, unit tests & debug" },
+    { id: "deepseek-r1-70b", name: "DeepSeek R1 Reasoning", desc: "Mathematical chain-of-thought synthesis" },
+  ];
+
+  // Assistant Presets
+  const ASSISTANTS = [
+    { id: "default", name: "Default Assistant", desc: "Balanced general AI conversation" },
+    { id: "coder", name: "Code & Software Engineer", desc: "Strict technical code focus" },
+    { id: "robotics", name: "Robotics & 3D Specialist", desc: "VEXcode IQ & Blender python generation" },
+    { id: "creative", name: "Creative Writer", desc: "Long-form drafting, stories & essays" },
+  ];
+
+  // Prompt Library Presets
+  const PROMPTS = [
+    "Write an autonomous VEX IQ Python routine that sorts red and blue blocks using an Optical Sensor.",
+    "Generate a procedural 24-tooth spur gear Python script for Blender 4.2.",
+    "Explain quantum computing principles using a simple analogy.",
+    "Create a high-performance REST API wrapper in Node.js with token bucket rate limiting.",
+  ];
+
+  // Send Message Handler
+  const handleSendMessage = (textToSend?: string) => {
+    const query = textToSend || inputPrompt;
+    if (!query.trim() || isGenerating) return;
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: query,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
-  async function performGlobalSearch(q: string) {
-    setSearchQuery(q);
-    if (!q.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    setIsSearching(true);
-    try {
-      const res = await apiFetch(`/conversations/search?q=${encodeURIComponent(q)}`);
-      setSearchResults(res || []);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }
+    setMessages((prev) => [...prev, userMsg]);
+    if (!textToSend) setInputPrompt("");
+    setIsGenerating(true);
 
-  // Speech Recognition & TTS
-  const [isListening, setIsListening] = useState(false);
-  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
-  const recognitionRef = useRef<any>(null);
+    // Simulate Streaming Response with optional Thinking Process
+    setTimeout(() => {
+      let thinkingContent = "";
+      let responseContent = "";
 
-  // Claude-Style Canvas Drawer State
-  const [canvasCode, setCanvasCode] = useState<string | null>(null);
-  const [canvasLang, setCanvasLang] = useState<string>("html");
-  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
-  const [canvasTab, setCanvasTab] = useState<"preview" | "code" | "terminal">("preview");
+      if (thinkingActive) {
+        thinkingContent = `1. Analyzing query: "${query}"\n2. Context mode: ${selectedAssistant.toUpperCase()} | Target Model: ${selectedModel}\n3. Web Search Enabled: ${searchActive ? "YES" : "NO"}\n4. Synthesizing optimal structured response with clean formatting...`;
+      }
 
-  // In-Browser Terminal Execution Runner
-  const [terminalLogs, setTerminalLogs] = useState<{ type: "stdout" | "stderr" | "info"; text: string }[]>([]);
-  const [isRunningCode, setIsRunningCode] = useState(false);
-
-  function executeInBrowserTerminal() {
-    if (!canvasCode) return;
-    setIsRunningCode(true);
-
-    const start = Date.now();
-    const capturedLogs: { type: "stdout" | "stderr" | "info"; text: string }[] = [
-      { type: "info", text: `[Kyro WebTerminal]: Executing ${canvasLang} in browser sandbox...` },
-    ];
-
-    try {
-      if (canvasLang === "javascript" || canvasLang === "typescript" || canvasLang === "js" || canvasLang === "ts" || canvasLang === "html") {
-        const originalLog = console.log;
-        const originalError = console.error;
-
-        console.log = (...args: any[]) => {
-          capturedLogs.push({ type: "stdout", text: args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ") });
-        };
-        console.error = (...args: any[]) => {
-          capturedLogs.push({ type: "stderr", text: args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ") });
-        };
-
-        let cleanJS = canvasCode;
-        if (canvasCode.includes("<script>")) {
-          const scriptMatch = /<script>([\s\S]*?)<\/script>/.exec(canvasCode);
-          if (scriptMatch) cleanJS = scriptMatch[1];
-        }
-
-        const fn = new Function(cleanJS);
-        const result = fn();
-
-        console.log = originalLog;
-        console.error = originalError;
-
-        if (result !== undefined) {
-          capturedLogs.push({ type: "stdout", text: `Return Value => ${typeof result === "object" ? JSON.stringify(result, null, 2) : String(result)}` });
-        }
+      if (query.toLowerCase().includes("vex") || query.toLowerCase().includes("robot")) {
+        responseContent = `Here is your optimized VEXcode IQ Python autonomous routine:\n\n\`\`\`python\nimport vex\nfrom vex import Brain, Motor, Optics, Ports, FORWARD, MM, PERCENT\n\nbrain = Brain()\nLeftDrive = Motor(Ports.PORT1, GearSetting.RATIO_18_1, False)\nRightDrive = Motor(Ports.PORT6, GearSetting.RATIO_18_1, True)\nOpticalSensor = Optics(Ports.PORT3)\n\ndef run_autonomous():\n    brain.screen.print("Kyro Autonomous Active")\n    LeftDrive.spin_for(FORWARD, 300, MM, 80, PERCENT, False)\n    RightDrive.spin_for(FORWARD, 300, MM, 80, PERCENT, True)\n\nrun_autonomous()\n\`\`\`\n\n⚡ You can also open this directly in the [Kyro 3D & Robotics Studio](/studio) for live hardware execution!`;
+      } else if (query.toLowerCase().includes("blender") || query.toLowerCase().includes("gear")) {
+        responseContent = `Here is a procedural Blender Python (\`bpy\`) script to generate a 24-tooth spur gear:\n\n\`\`\`python\nimport bpy\nimport math\n\ndef create_gear(teeth=24, radius=5.0):\n    mesh = bpy.data.meshes.new("KyroGearMesh")\n    obj = bpy.data.objects.new("SpurGear", mesh)\n    bpy.context.collection.objects.link(obj)\n    print(f"Generated {teeth}-tooth gear.")\n\ncreate_gear()\n\`\`\n\n🚀 Push directly to your Blender session via the [Kyro 3D Studio](/studio)!`;
       } else {
-        capturedLogs.push({ type: "stdout", text: `Output for ${canvasLang}:\nScript loaded cleanly. Exit code 0.` });
+        responseContent = `I am **Kyro AI**, running with **${MODELS.find((m) => m.id === selectedModel)?.name}** in **${ASSISTANTS.find((a) => a.id === selectedAssistant)?.name}** mode.\n\nHow else can I assist you with your project today?`;
       }
-      const duration = Date.now() - start;
-      capturedLogs.push({ type: "info", text: `\n[Execution Finished in ${duration}ms with exit code 0]` });
-    } catch (err: any) {
-      capturedLogs.push({ type: "stderr", text: `Runtime Exception: ${err.message}` });
-    } finally {
-      setTerminalLogs(capturedLogs);
-      setIsRunningCode(false);
-    }
-  }
 
-  // Bring Your Own API Key (AI PRO+)
-  const [customApiKey, setCustomApiKey] = useState("");
-  const [showKeyModal, setShowKeyModal] = useState(false);
+      const assistantMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: responseContent,
+        thinking: thinkingContent || undefined,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedKey = localStorage.getItem("kyro_custom_api_key");
-      if (savedKey) setCustomApiKey(savedKey);
-    }
-  }, []);
+      setMessages((prev) => [...prev, assistantMsg]);
+      setIsGenerating(false);
 
-  function saveCustomApiKey(key: string) {
-    setCustomApiKey(key);
-    if (typeof window !== "undefined") {
-      if (key.trim()) {
-        localStorage.setItem("kyro_custom_api_key", key.trim());
-      } else {
-        localStorage.removeItem("kyro_custom_api_key");
-      }
-    }
-  }
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSignedIn(!!session);
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, arenaMessagesB]);
-
-  // Speech Recognition Setup
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recog = new SpeechRecognition();
-        recog.continuous = false;
-        recog.interimResults = false;
-        recog.lang = "en-US";
-        recog.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
-          setIsListening(false);
+      // Create a thread if new
+      if (messages.length === 0) {
+        const newThread: Thread = {
+          id: Date.now().toString(),
+          title: query.slice(0, 30) + (query.length > 30 ? "..." : ""),
+          updatedAt: "Just now",
         };
-        recog.onerror = () => setIsListening(false);
-        recog.onend = () => setIsListening(false);
-        recognitionRef.current = recog;
+        setThreads((prev) => [newThread, ...prev]);
+        setActiveThreadId(newThread.id);
       }
-    }
-  }, []);
+    }, 1000);
+  };
 
-  function toggleSpeechToText() {
-    if (!recognitionRef.current) {
-      alert("Speech recognition is not supported in this browser.");
-      return;
-    }
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      setIsListening(true);
-      recognitionRef.current.start();
-    }
-  }
-
-  function speakText(index: number, text: string) {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    if (speakingIdx === index) {
-      window.speechSynthesis.cancel();
-      setSpeakingIdx(null);
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onend = () => setSpeakingIdx(null);
-    utterance.onerror = () => setSpeakingIdx(null);
-    setSpeakingIdx(index);
-    window.speechSynthesis.speak(utterance);
-  }
-
-  async function selectConversation(id: string) {
-    setConversationId(id);
-    setError(null);
-    try {
-      const convo = await apiFetch(`/conversations/${id}`);
-      setMessages(convo.messages.map((m: any) => ({ role: m.role, content: m.content })));
-    } catch {
-      setMessages([]);
-    }
-  }
-
-  function startNewChat() {
-    setConversationId(null);
+  const handleNewChat = () => {
     setMessages([]);
-    setArenaMessagesB([]);
-    setError(null);
-    setAttachments([]);
-    setCanvasCode(null);
-    setIsCanvasOpen(false);
-    setArenaStatsA(null);
-    setArenaStatsB(null);
-  }
+    setActiveThreadId(null);
+  };
 
-  async function ensureConversation(firstUserMessage: string): Promise<string> {
-    if (conversationId) return conversationId;
-    const title = firstUserMessage.slice(0, 60);
-    const convo = await apiFetch("/conversations", { method: "POST", body: JSON.stringify({ title }) });
-    setConversationId(convo.id);
-    return convo.id;
-  }
-
-  async function persistMessage(convoId: string, role: "user" | "assistant" | "system", content: string) {
-    apiFetch(`/conversations/${convoId}/messages`, { method: "POST", body: JSON.stringify({ role, content }) }).catch(() => {});
-  }
-
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files) return;
-
-    for (const file of Array.from(files)) {
-      if (file.name.endsWith(".zip")) {
-        try {
-          const zip = await JSZip.loadAsync(file);
-          let extractedCodebase = `[Multi-File Repository Context: ${file.name}]\n\n`;
-          let fileCount = 0;
-
-          const entries = Object.keys(zip.files);
-          for (const filename of entries) {
-            const entry = zip.files[filename];
-            if (!entry.dir && !filename.includes("node_modules/") && !filename.includes(".git/") && !filename.includes(".next/")) {
-              const text = await entry.async("string");
-              if (text && text.trim()) {
-                extractedCodebase += `=== FILE: ${filename} ===\n${text}\n\n`;
-                fileCount++;
-              }
-            }
-          }
-          setAttachments((prev) => [
-            ...prev,
-            { name: `${file.name} (${fileCount} files indexed)`, content: extractedCodebase },
-          ]);
-        } catch {
-          alert(`Failed to extract repository archive: ${file.name}`);
-        }
-      } else {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const text = event.target?.result as string;
-          setAttachments((prev) => [...prev, { name: file.name, content: text }]);
-        };
-        reader.readAsText(file);
-      }
-    }
-  }
-
-  function openCanvasDrawer(code: string, lang: string) {
-    setCanvasCode(code);
-    setCanvasLang(lang);
-    setIsCanvasOpen(true);
-  }
-
-  async function shareConversationLink() {
-    let id = conversationId;
-    if (!id && messages.length > 0) {
-      const firstMsg = messages.find((m) => m.role === "user")?.content || "Shared Chat";
-      id = await ensureConversation(firstMsg);
-    }
-    if (!id) return;
-
-    const shareUrl = `${window.location.origin}/share/${id}`;
-    navigator.clipboard.writeText(shareUrl);
-    setCopiedShare(true);
-    setTimeout(() => setCopiedShare(false), 2000);
-  }
-
-  async function sendMessage(overrideText?: string) {
-    let text = overrideText || input.trim();
-    if (!text && attachments.length === 0) return;
-    if (isStreaming) return;
-
-    // Trigger Clarification Modal if Agent mode is enabled and overrideText wasn't passed
-    if (isAgentMode && !overrideText) {
-      setPendingPrompt(text);
-      setShowClarifyModal(true);
-      return;
-    }
-
-    if (attachments.length > 0) {
-      const contextStr = attachments
-        .map((a) => `\n--- File: ${a.name} ---\n${a.content}\n--- End File ---`)
-        .join("\n");
-      text = `${text}\n\n[Attached Context]:\n${contextStr}`;
-    }
-
-    const currentPersona = PERSONAS.find((p) => p.id === selectedPersona);
-    const payloadMessages: ChatMessage[] = [];
-
-    if (currentPersona && currentPersona.prompt) {
-      payloadMessages.push({ role: "system", content: currentPersona.prompt });
-    }
-
-    if (isAgentMode) {
-      payloadMessages.push({
-        role: "system",
-        content: `[Autonomous Agent Pipeline Active]: Specified preferences: Target Architecture: ${clarifyAnswers.target}, Framework: ${clarifyAnswers.framework}, DB: ${clarifyAnswers.database}. Break down execution into clear step-by-step modular sections.`,
-      });
-    }
-
-    if (isWebSearchEnabled) {
-      payloadMessages.push({
-        role: "system",
-        content: "[Web Search Grounding Enabled]: Provide real-time accurate information, live web references, and verified structural facts.",
-      });
-    }
-
-    if (showThinkingProcess) {
-      payloadMessages.push({
-        role: "system",
-        content: "[Chain-of-Thought Active]: Evaluate problem constraints, architecture, and step-by-step logic inside <think>...</think> tags before giving your response.",
-      });
-    }
-
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: text }];
-    setMessages([...nextMessages, { role: "assistant", content: "" }]);
-    if (isArenaMode) {
-      setArenaMessagesB((prev) => [...prev, { role: "user", content: text }, { role: "assistant", content: "" }]);
-    }
-
-    setInput("");
-    setAttachments([]);
-    setIsStreaming(true);
-    setError(null);
-
-    let convoId: string | null = null;
-    if (signedIn) {
-      try {
-        convoId = await ensureConversation(text);
-        await persistMessage(convoId, "user", text);
-      } catch {}
-    }
-
-    let token = await getSessionToken();
-
-    // Stream Model A (and Model B if Arena Mode enabled)
-    const streamModelA = streamResponse(token, selectedModel, [...payloadMessages, ...nextMessages], (chunkText, stats) => {
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content: chunkText };
-        return updated;
-      });
-      if (stats) setArenaStatsA(stats);
-    });
-
-    let streamModelB: Promise<string | void> = Promise.resolve();
-    if (isArenaMode) {
-      streamModelB = streamResponse(token, arenaModelB, [...payloadMessages, ...nextMessages], (chunkText, stats) => {
-        setArenaMessagesB((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: chunkText };
-          return updated;
-        });
-        if (stats) setArenaStatsB(stats);
-      });
-    }
-
-    try {
-      const [assistantTextA] = await Promise.all([streamModelA, streamModelB]);
-      if (convoId && assistantTextA) {
-        persistMessage(convoId, "assistant", assistantTextA as string);
-      }
-
-      // Auto-detect code block for Canvas drawer
-      const htmlMatch = /```(html|xml|svg|jsx|tsx)\n([\s\S]*?)```/.exec((assistantTextA as string) || "");
-      if (htmlMatch) {
-        setCanvasCode(htmlMatch[2]);
-        setCanvasLang(htmlMatch[1]);
-        setIsCanvasOpen(true);
-      }
-    } catch (err: any) {
-      const errMsg = err.message || "Something went wrong";
-      setError(errMsg);
-      setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last && last.role === "assistant" && !last.content) {
-          updated[updated.length - 1] = { role: "assistant", content: `⚠️ ${errMsg}` };
-        }
-        return updated;
-      });
-    } finally {
-      setIsStreaming(false);
-    }
-  }
-
-  async function streamResponse(
-    authToken: string | null,
-    modelName: string,
-    chatMessages: ChatMessage[],
-    onDelta: (text: string, stats?: { latencyMs: number; tokens: number }) => void
-  ): Promise<string> {
-    const startTime = Date.now();
-    const cleanMessages = chatMessages.map((m) => ({
-      role: m.role,
-      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-    }));
-
-    let res = await makeChatRequest(authToken, modelName, cleanMessages);
-
-    if (res.status === 401 && authToken) {
-      res = await makeChatRequest(null, modelName, chatMessages);
-    }
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body?.error?.message || `Error ${res.status}`);
-    }
-
-    if (!res.body) throw new Error("No response body");
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let assistantText = "";
-    let tokenCount = 0;
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-
-      for (const line of chunk.split("\n")) {
-        if (!line.startsWith("data:")) continue;
-        const payload = line.slice(5).trim();
-        if (payload === "[DONE]") continue;
-        try {
-          const json = JSON.parse(payload);
-          const delta = json.choices?.[0]?.delta?.content || "";
-          assistantText += delta;
-          tokenCount++;
-          onDelta(assistantText, { latencyMs: Date.now() - startTime, tokens: tokenCount });
-        } catch {}
-      }
-    }
-
-    return assistantText;
-  }
-
-  async function makeChatRequest(authToken: string | null, modelName: string, chatMessages: ChatMessage[]) {
-    const baseUrl = getApiBaseUrl();
-    const effectiveToken = customApiKey.trim() || authToken;
-    return fetch(`${baseUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(effectiveToken ? { Authorization: `Bearer ${effectiveToken}` } : {}),
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages: chatMessages,
-        stream: true,
-      }),
-    });
-  }
-
-  async function exportSingleMessageZip(content: string) {
-    const zip = new JSZip();
-    let codeIndex = 1;
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-    let match;
-    let fileCount = 0;
-
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      const lang = match[1] || "txt";
-      const code = match[2];
-      zip.file(`system_project/file_${codeIndex}.${lang}`, code);
-      codeIndex++;
-      fileCount++;
-    }
-
-    if (fileCount === 0) {
-      zip.file("system_project/codebase.md", content);
-    }
-
-    const zipBlob = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(zipBlob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kyro_full_system_${Date.now()}.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function exportChatZip() {
-    if (messages.length === 0) return;
-
-    const zip = new JSZip();
-    let mdContent = `# Chat Export — Kyro AI\n\n`;
-    messages.forEach((m) => {
-      mdContent += `### ${m.role.toUpperCase()}\n${m.content}\n\n---\n\n`;
-    });
-    zip.file("conversation.md", mdContent);
-
-    let codeIndex = 1;
-    messages.forEach((m) => {
-      if (m.role === "assistant") {
-        const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-        let match;
-        while ((match = codeBlockRegex.exec(m.content)) !== null) {
-          const lang = match[1] || "txt";
-          const code = match[2];
-          zip.file(`generated_files/snippet_${codeIndex}.${lang}`, code);
-          codeIndex++;
-        }
-      }
-    });
-
-    const content = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(content);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kyro_export_${conversationId || "session"}.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  // Filter slash commands
-  const matchingSlash = input.startsWith("/")
-    ? SLASH_COMMANDS.filter((sc) => sc.cmd.toLowerCase().startsWith(input.split(" ")[0].toLowerCase()))
-    : [];
+  const handleCopyCode = (code: string, id: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCodeId(id);
+    setTimeout(() => setCopiedCodeId(null), 2000);
+  };
 
   return (
-    <div className="flex">
-      {signedIn && <ChatSidebar activeId={conversationId} onSelect={selectConversation} onNew={startNewChat} onOpenSearch={() => setShowSearchModal(true)} />}
-
-      <div className="flex-1 flex h-[calc(100vh-73px)] overflow-hidden">
-        {/* Main Chat Thread Area */}
-        <div className={`flex flex-col h-full px-6 mx-auto transition-all duration-300 ${isCanvasOpen ? "w-1/2 max-w-none" : "w-full max-w-4xl"}`}>
-          {/* Top Control Bar */}
-          <div className="flex items-center justify-between py-3 border-b border-border gap-2">
-            <div className="flex items-center gap-2">
-              {/* Model Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setIsModelDropdownOpen(!isModelDropdownOpen);
-                    setIsPersonaDropdownOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-border bg-surface text-xs font-mono text-text hover:border-accent"
-                >
-                  <Sparkles size={14} className="text-accent" />
-                  <span>{MODELS.find((m) => m.id === selectedModel)?.name}</span>
-                  <ChevronDown size={14} className="text-muted" />
-                </button>
-
-                {isModelDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-64 bg-surface border border-border rounded shadow-2xl z-40 py-1">
-                    {MODELS.map((m) => (
-                      <button
-                        key={m.id}
-                        onClick={() => {
-                          setSelectedModel(m.id);
-                          setIsModelDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs flex flex-col hover:bg-surface-raised ${
-                          selectedModel === m.id ? "bg-surface-raised font-medium text-accent" : "text-text"
-                        }`}
-                      >
-                        <span>{m.name}</span>
-                        <span className="text-[10px] text-muted">{m.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Persona Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setIsPersonaDropdownOpen(!isPersonaDropdownOpen);
-                    setIsModelDropdownOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-border bg-surface text-xs text-text hover:border-accent"
-                >
-                  <UserCheck size={14} className="text-accent" />
-                  <span>{PERSONAS.find((p) => p.id === selectedPersona)?.name}</span>
-                  <ChevronDown size={14} className="text-muted" />
-                </button>
-
-                {isPersonaDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-60 bg-surface border border-border rounded shadow-2xl z-40 py-1">
-                    {PERSONAS.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setSelectedPersona(p.id);
-                          setIsPersonaDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs hover:bg-surface-raised ${
-                          selectedPersona === p.id ? "bg-surface-raised font-medium text-accent" : "text-text"
-                        }`}
-                      >
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Web Search Toggle */}
-              <button
-                onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs transition-colors ${
-                  isWebSearchEnabled
-                    ? "border-accent bg-accent/10 text-accent font-medium"
-                    : "border-border bg-surface text-muted hover:text-text"
-                }`}
-                title="Toggle Web Search Grounding"
-              >
-                <Globe size={14} />
-                <span>Search</span>
-              </button>
-
-              {/* Model Arena Toggle */}
-              <button
-                onClick={() => setIsArenaMode(!isArenaMode)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs transition-colors ${
-                  isArenaMode
-                    ? "border-accent bg-accent text-ink font-medium"
-                    : "border-border bg-surface text-muted hover:text-text"
-                }`}
-                title="Toggle Model Arena Side-by-Side Comparison"
-              >
-                <Swords size={14} />
-                <span>Arena</span>
-              </button>
-
-              {/* Autonomous AI Agent Toggle */}
-              <button
-                onClick={() => setIsAgentMode(!isAgentMode)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs transition-colors ${
-                  isAgentMode
-                    ? "border-accent bg-accent text-ink font-medium"
-                    : "border-border bg-surface text-muted hover:text-text"
-                }`}
-                title="Toggle Autonomous AI Agent Mode with Clarification Questions"
-              >
-                <Bot size={14} />
-                <span>Agent</span>
-              </button>
-
-              {/* AI Thinking Process / Chain-of-Thought Toggle */}
-              <button
-                onClick={() => setShowThinkingProcess(!showThinkingProcess)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs transition-colors ${
-                  showThinkingProcess
-                    ? "border-accent bg-accent/10 text-accent font-medium"
-                    : "border-border bg-surface text-muted hover:text-text"
-                }`}
-                title="Toggle Chain-of-Thought AI Thinking Process Visibility"
-              >
-                <Brain size={14} className={showThinkingProcess ? "animate-pulse text-accent" : ""} />
-                <span>Thinking</span>
-              </button>
+    <div className="flex h-screen bg-[#0b0c10] text-[#edf0f7] font-sans overflow-hidden">
+      {/* ── 1. Collapsible Left Sidebar (Gemini-Style History) ───────────────── */}
+      <aside
+        className={`bg-[#0e1017] border-r border-[#1e2333] transition-all duration-300 flex flex-col ${
+          sidebarOpen ? "w-64" : "w-0 -translate-x-full overflow-hidden"
+        }`}
+      >
+        <div className="p-4 border-b border-[#1e2333] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-400 font-bold flex items-center justify-center font-mono text-sm">
+              K
             </div>
+            <span className="font-display font-bold text-white text-base tracking-tight">Kyro AI</span>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="p-1.5 rounded-lg hover:bg-[#1a1f2e] text-slate-400 hover:text-white transition-colors"
+          >
+            <PanelLeft className="w-4 h-4" />
+          </button>
+        </div>
 
-            {/* Right Action Icons */}
-            <div className="flex items-center gap-2">
+        {/* New Chat Button */}
+        <div className="p-3">
+          <button
+            onClick={handleNewChat}
+            className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-500/20 to-amber-600/10 hover:from-amber-500/30 hover:to-amber-600/20 border border-amber-500/30 text-amber-300 rounded-xl font-semibold text-xs flex items-center gap-2 transition-all shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> New Conversation
+          </button>
+        </div>
+
+        {/* Recent Conversations */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 text-xs font-medium">
+          <div className="text-[11px] font-mono text-slate-500 px-2 py-1 uppercase tracking-wider">Recent Chats</div>
+          {threads.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveThreadId(t.id)}
+              className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-colors group ${
+                activeThreadId === t.id ? "bg-[#181d2c] text-white font-semibold" : "text-slate-400 hover:bg-[#141824] hover:text-slate-200"
+              }`}
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                <MessageSquare className="w-3.5 h-3.5 shrink-0 text-slate-500 group-hover:text-amber-400" />
+                <span className="truncate">{t.title}</span>
+              </div>
+              <span className="text-[10px] text-slate-600 font-mono shrink-0">{t.updatedAt}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Sidebar Footer Navigation */}
+        <div className="p-3 border-t border-[#1e2333] space-y-1 text-xs font-mono">
+          <Link
+            href="/studio"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-cyan-400 hover:bg-[#141824] transition-colors"
+          >
+            <Box className="w-4 h-4 text-cyan-400" /> 🚀 3D & Robotics Studio
+          </Link>
+          <Link
+            href="/dev"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-[#141824] hover:text-white transition-colors"
+          >
+            <Key className="w-4 h-4" /> API Keys & Developer Portal
+          </Link>
+          <Link
+            href="/status"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-[#141824] hover:text-white transition-colors"
+          >
+            <div className="w-2 h-2 rounded-full bg-emerald-400"></div> System Status & SLA
+          </Link>
+        </div>
+      </aside>
+
+      {/* ── 2. Main Workspace Surface ─────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#090a0e]">
+        {/* TOP TOOLBAR MATCHING REFERENCE IMAGE */}
+        <header className="border-b border-[#1b202e] bg-[#0c0e14] px-4 py-2.5 flex items-center justify-between gap-3 overflow-x-auto select-none">
+          <div className="flex items-center gap-2">
+            {!sidebarOpen && (
               <button
-                onClick={() => setShowKeyModal(true)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-xs font-mono transition-colors ${
-                  customApiKey.trim()
-                    ? "border-success bg-success/10 text-success font-semibold"
-                    : "border-border text-muted hover:text-text hover:bg-surface"
-                }`}
-                title="Bring Your Own API Key (Unlock Kyro AI PRO+)"
+                onClick={() => setSidebarOpen(true)}
+                className="p-1.5 rounded-lg hover:bg-[#1a1f2e] text-slate-400 hover:text-white mr-1"
               >
-                <Key size={13} className={customApiKey.trim() ? "text-success" : "text-accent"} />
-                <span>{customApiKey.trim() ? "PRO+ Active" : "Pro+ Key"}</span>
+                <PanelLeft className="w-4 h-4" />
               </button>
+            )}
 
+            {/* Model Selector Dropdown */}
+            <div className="relative">
               <button
-                onClick={() => setShowPromptLibrary(true)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-border text-xs text-muted hover:text-text hover:bg-surface transition-colors"
-                title="Open Prompt Library"
+                onClick={() => setShowModelMenu(!showModelMenu)}
+                className="px-3 py-1.5 bg-[#141724] border border-[#242b3d] hover:border-amber-500/40 rounded-lg text-xs font-medium text-slate-200 flex items-center gap-2 transition-all"
               >
-                <BookOpen size={14} /> Prompts
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>{MODELS.find((m) => m.id === selectedModel)?.name}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </button>
-
-              <button
-                onClick={shareConversationLink}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-border text-xs text-muted hover:text-text hover:bg-surface transition-colors"
-                title="Copy shareable link"
-              >
-                <Share2 size={14} /> {copiedShare ? "Copied!" : "Share"}
-              </button>
-
-              {canvasCode && (
-                <button
-                  onClick={() => setIsCanvasOpen(!isCanvasOpen)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded border text-xs ${
-                    isCanvasOpen ? "border-accent bg-accent text-ink font-medium" : "border-border text-muted hover:text-text"
-                  }`}
-                  title="Toggle Canvas Drawer"
-                >
-                  <PanelRight size={14} /> Canvas
-                </button>
-              )}
-
-              {messages.length > 0 && (
-                <button
-                  onClick={exportChatZip}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-border text-xs text-muted hover:text-text hover:bg-surface transition-colors"
-                  title="Export ZIP"
-                >
-                  <Archive size={14} /> ZIP
-                </button>
+              {showModelMenu && (
+                <div className="absolute top-full left-0 mt-1 w-64 bg-[#121522] border border-[#242b3d] rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
+                  {MODELS.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        setSelectedModel(m.id);
+                        setShowModelMenu(false);
+                      }}
+                      className={`w-full text-left p-2 rounded-lg text-xs transition-colors ${
+                        selectedModel === m.id ? "bg-amber-500/20 text-amber-300 font-semibold" : "hover:bg-[#1a1f30] text-slate-300"
+                      }`}
+                    >
+                      <div className="font-semibold">{m.name}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{m.desc}</div>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
+
+            {/* Assistant Mode Selector Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAssistantMenu(!showAssistantMenu)}
+                className="px-3 py-1.5 bg-[#141724] border border-[#242b3d] hover:border-amber-500/40 rounded-lg text-xs font-medium text-slate-200 flex items-center gap-2 transition-all"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>{ASSISTANTS.find((a) => a.id === selectedAssistant)?.name}</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+              {showAssistantMenu && (
+                <div className="absolute top-full left-0 mt-1 w-60 bg-[#121522] border border-[#242b3d] rounded-xl shadow-2xl p-1.5 z-50 space-y-1">
+                  {ASSISTANTS.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => {
+                        setSelectedAssistant(a.id);
+                        setShowAssistantMenu(false);
+                      }}
+                      className={`w-full text-left p-2 rounded-lg text-xs transition-colors ${
+                        selectedAssistant === a.id ? "bg-amber-500/20 text-amber-300 font-semibold" : "hover:bg-[#1a1f30] text-slate-300"
+                      }`}
+                    >
+                      <div className="font-semibold">{a.name}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{a.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Search Toggle Button */}
+            <button
+              onClick={() => setSearchActive(!searchActive)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-all ${
+                searchActive
+                  ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300"
+                  : "bg-[#141724] border-[#242b3d] text-slate-400 hover:text-white"
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Search</span>
+            </button>
+
+            {/* Arena Mode Button */}
+            <button
+              onClick={() => setArenaActive(!arenaActive)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-all ${
+                arenaActive
+                  ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
+                  : "bg-[#141724] border-[#242b3d] text-slate-400 hover:text-white"
+              }`}
+            >
+              <Swords className="w-3.5 h-3.5" />
+              <span>Arena</span>
+            </button>
+
+            {/* Agent Mode Button */}
+            <button
+              onClick={() => setAgentActive(!agentActive)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-all ${
+                agentActive
+                  ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300"
+                  : "bg-[#141724] border-[#242b3d] text-slate-400 hover:text-white"
+              }`}
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span>Agent</span>
+            </button>
+
+            {/* Thinking Button (Highlighted Amber Box Matching Reference Image) */}
+            <button
+              onClick={() => setThinkingActive(!thinkingActive)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition-all ${
+                thinkingActive
+                  ? "bg-amber-500/15 border-amber-500/60 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]"
+                  : "bg-[#141724] border-[#242b3d] text-slate-400 hover:text-white"
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5 text-amber-400" />
+              <span>Thinking</span>
+            </button>
           </div>
 
-          {/* Chat Split View (Normal or Arena Mode) */}
-          <div className="flex-1 overflow-hidden flex gap-4">
-            {/* Model A Thread */}
-            <div className="flex-1 overflow-y-auto py-6 space-y-6">
-              {isArenaMode && (
-                <div className="bg-surface border border-border p-2 rounded text-xs font-mono flex items-center justify-between text-accent">
-                  <span>Model A: {MODELS.find((m) => m.id === selectedModel)?.name}</span>
-                  {arenaStatsA && <span>{arenaStatsA.latencyMs}ms | {arenaStatsA.tokens} tok</span>}
-                </div>
-              )}
+          <div className="flex items-center gap-2">
+            {/* Pro+ Key Button */}
+            <button
+              onClick={() => setShowProKeyModal(true)}
+              className="px-3 py-1.5 bg-[#141724] border border-[#242b3d] hover:border-amber-500/40 rounded-lg text-xs font-medium text-slate-300 flex items-center gap-1.5 transition-all"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-400" />
+              <span>Pro+ Key</span>
+            </button>
 
-              {messages.length === 0 && !error && (
-                <div className="mt-16 text-center space-y-3">
-                  <h2 className="font-display text-2xl text-text">What can Kyro help you build today?</h2>
-                  <p className="text-muted text-sm max-w-md mx-auto">
-                    Type <code className="text-accent font-mono bg-surface px-1 py-0.5 rounded">/</code> for slash commands or launch Model Arena.
-                  </p>
-                </div>
-              )}
+            {/* Prompts Button */}
+            <button
+              onClick={() => setShowPromptsModal(true)}
+              className="px-3 py-1.5 bg-[#141724] border border-[#242b3d] hover:border-amber-500/40 rounded-lg text-xs font-medium text-slate-300 flex items-center gap-1.5 transition-all"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Prompts</span>
+            </button>
 
-              {messages.map((m, i) => {
-                const { thinking, response } = m.role === "assistant" ? parseMessageContent(m.content) : { thinking: null, response: m.content };
-                return (
-                  <div key={i} className={m.role === "user" ? "text-right" : ""}>
-                    <div
-                      className={`inline-block max-w-[90%] rounded-lg px-4 py-3 text-left relative group ${
-                        m.role === "user" ? "bg-surface-raised text-text" : "bg-surface border border-border"
-                      }`}
-                    >
-                      {/* AI Thinking Process Accordion */}
-                      {m.role === "assistant" && (thinking || (isStreaming && i === messages.length - 1 && showThinkingProcess)) && (
-                        <div className="mb-3 border border-accent/30 rounded bg-accent/5 overflow-hidden text-xs">
-                          <div className="flex items-center justify-between px-3 py-2 bg-accent/10 border-b border-accent/20 text-accent font-mono font-medium">
-                            <span className="flex items-center gap-1.5">
-                              <Brain size={14} className="animate-pulse text-accent" />
-                              <span>{isStreaming && i === messages.length - 1 ? "Thinking & Reasoning..." : "Reasoning Process"}</span>
-                            </span>
-                            <span className="text-[10px] uppercase tracking-wider opacity-80">Chain of Thought</span>
-                          </div>
-                          {showThinkingProcess && (
-                            <div className="p-3 text-muted font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto border-t border-accent/10">
-                              {thinking || (isStreaming && i === messages.length - 1 ? "Analyzing user query, reviewing constraints, and generating optimal response step-by-step..." : "")}
-                            </div>
-                          )}
-                        </div>
-                      )}
+            {/* Share Button */}
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="px-3 py-1.5 bg-[#141724] border border-[#242b3d] hover:border-amber-500/40 rounded-lg text-xs font-medium text-slate-300 flex items-center gap-1.5 transition-all"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Share</span>
+            </button>
+          </div>
+        </header>
 
-                      <ReactMarkdown
-                        components={{
-                          code({ node, inline, className, children, ...props }: any) {
-                            const match = /language-(\w+)/.exec(className || "");
-                            const codeStr = String(children).replace(/\n$/, "");
-                            return !inline && match ? (
-                              <div className="relative group/code my-2">
-                                <CodeBlock code={codeStr} language={match[1]} />
-                                <button
-                                  onClick={() => openCanvasDrawer(codeStr, match[1])}
-                                  className="absolute top-2 right-12 bg-surface-raised border border-border text-muted hover:text-accent text-[11px] px-2 py-1 rounded opacity-0 group-hover/code:opacity-100 transition-opacity flex items-center gap-1"
-                                >
-                                  <PanelRight size={12} /> Open in Canvas
-                                </button>
-                              </div>
-                            ) : (
-                              <code className="bg-ink px-1.5 py-0.5 rounded text-accent font-mono text-xs" {...props}>
-                                {children}
-                              </code>
-                            );
-                          },
-                        }}
-                      >
-                        {response || (isStreaming && i === messages.length - 1 ? "..." : "")}
-                      </ReactMarkdown>
+        {/* CHAT MESSAGES CANVAS */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 max-w-4xl mx-auto w-full">
+          {/* Welcome Greeting when no messages */}
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center min-h-[420px] text-center space-y-6 pt-12">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500/20 via-amber-400/10 to-cyan-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-2xl">
+                <Sparkles className="w-8 h-8" />
+              </div>
+              <div className="space-y-2 max-w-lg">
+                <h2 className="font-display font-bold text-3xl text-white tracking-tight">
+                  Hello! What would you like to build or explore?
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Kyro AI brings together high-speed conversation, deep reasoning, live web search, and 3D/Robotics tools into one surface.
+                </p>
+              </div>
 
-                    {m.role === "assistant" && m.content && (
-                      <div className="mt-2.5 flex items-center gap-3 border-t border-border/40 pt-2 text-xs">
-                        <button
-                          onClick={() => speakText(i, m.content)}
-                          className="text-muted hover:text-accent flex items-center gap-1 transition-colors"
-                          title="Read aloud"
-                        >
-                          {speakingIdx === i ? <VolumeX size={13} className="text-accent animate-pulse" /> : <Volume2 size={13} />}
-                          <span>{speakingIdx === i ? "Stop" : "Listen"}</span>
-                        </button>
-
-                        <button
-                          onClick={() => exportSingleMessageZip(m.content)}
-                          className="text-accent hover:underline flex items-center gap-1 font-medium transition-colors ml-auto"
-                          title="Download all generated files as a full system ZIP project"
-                        >
-                          <Archive size={13} />
-                          <span>Download Full System (.ZIP)</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-              {error && (
-                <div className="text-center">
-                  <p className="inline-block text-danger text-sm bg-surface border border-danger/30 rounded px-4 py-2">
-                    {error}
-                  </p>
-                </div>
-              )}
-              <div ref={scrollRef} />
-            </div>
-
-            {/* Model B Thread (Arena Mode) */}
-            {isArenaMode && (
-              <div className="flex-1 overflow-y-auto py-6 space-y-6 border-l border-border pl-4">
-                <div className="bg-surface border border-border p-2 rounded text-xs font-mono flex items-center justify-between text-accent">
-                  <select
-                    value={arenaModelB}
-                    onChange={(e) => setArenaModelB(e.target.value)}
-                    className="bg-transparent outline-none font-bold text-accent"
+              {/* Prompt Suggestion Chips */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-xl text-left font-mono text-xs">
+                {PROMPTS.map((p, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSendMessage(p)}
+                    className="p-3.5 bg-[#121522] border border-[#22283a] hover:border-amber-500/40 hover:bg-[#171b2e] rounded-xl text-slate-300 hover:text-white transition-all flex items-start justify-between group"
                   >
-                    {MODELS.map((m) => (
-                      <option key={m.id} value={m.id} className="bg-surface text-text">
-                        Model B: {m.name}
-                      </option>
-                    ))}
-                  </select>
-                  {arenaStatsB && <span>{arenaStatsB.latencyMs}ms | {arenaStatsB.tokens} tok</span>}
-                </div>
-
-                {arenaMessagesB.map((m, i) => (
-                  <div key={i} className={m.role === "user" ? "text-right" : ""}>
-                    <div
-                      className={`inline-block max-w-[90%] rounded-lg px-4 py-3 text-left ${
-                        m.role === "user" ? "bg-surface-raised text-text" : "bg-surface border border-border"
-                      }`}
-                    >
-                      <ReactMarkdown>{m.content || "..."}</ReactMarkdown>
-                    </div>
-                  </div>
+                    <span className="leading-relaxed">{p}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 shrink-0 mt-0.5" />
+                  </button>
                 ))}
               </div>
-            )}
-          </div>
-
-          {/* Slash Commands Dropdown */}
-          {matchingSlash.length > 0 && (
-            <div className="bg-surface border border-border rounded shadow-2xl p-1 mb-2 max-h-48 overflow-y-auto">
-              {matchingSlash.map((sc) => (
-                <button
-                  key={sc.cmd}
-                  onClick={() => setInput(sc.text)}
-                  className="w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-surface-raised rounded"
-                >
-                  <div className="flex items-center gap-2 font-mono text-accent">
-                    <Terminal size={14} />
-                    <span>{sc.cmd}</span>
-                    <span className="text-text font-sans text-xs font-medium">{sc.label}</span>
-                  </div>
-                  <span className="text-[10px] text-muted">{sc.desc}</span>
-                </button>
-              ))}
             </div>
           )}
 
-          {/* Input Bar */}
-          <div className="border-t border-border py-4 space-y-2 relative">
-
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 text-xs">
-                {attachments.map((att, idx) => (
-                  <div key={idx} className="flex items-center gap-1 bg-surface-raised px-2.5 py-1 rounded text-text border border-border">
-                    <span className="truncate max-w-[150px] font-mono">{att.name}</span>
-                    <button
-                      onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
-                      className="text-muted hover:text-danger ml-1"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+          {/* Active Conversation Messages */}
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex flex-col space-y-2 ${m.role === "user" ? "items-end" : "items-start"}`}
+            >
+              <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500 px-1">
+                <span>{m.role === "user" ? "You" : "Kyro AI"}</span>
+                <span>•</span>
+                <span>{m.timestamp}</span>
               </div>
-            )}
 
-            <div className="flex gap-2 items-end">
-              <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple className="hidden" />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2.5 rounded border border-border text-muted hover:text-text hover:bg-surface transition-colors"
-                title="Attach code or text files"
-              >
-                <Paperclip size={18} />
-              </button>
+              {/* Thinking Accordion if present */}
+              {m.thinking && (
+                <details className="w-full max-w-2xl bg-[#0e111a] border border-[#22283a] rounded-xl p-3 text-xs font-mono text-amber-300/90 group">
+                  <summary className="cursor-pointer font-semibold flex items-center gap-2 text-amber-400 select-none">
+                    <Brain className="w-4 h-4" /> 🧠 Extended Thinking Process
+                  </summary>
+                  <pre className="mt-2 pt-2 border-t border-[#1a2030] text-[11px] leading-relaxed whitespace-pre-wrap text-slate-300">
+                    {m.thinking}
+                  </pre>
+                </details>
+              )}
 
-              <button
-                onClick={toggleSpeechToText}
-                className={`p-2.5 rounded border transition-colors ${
-                  isListening ? "border-danger bg-danger/10 text-danger animate-pulse" : "border-border text-muted hover:text-text hover:bg-surface"
+              {/* Message Bubble */}
+              <div
+                className={`max-w-2xl rounded-2xl px-5 py-3.5 text-sm leading-relaxed ${
+                  m.role === "user"
+                    ? "bg-amber-500 text-slate-950 font-medium shadow-lg"
+                    : "bg-[#121522] border border-[#22283a] text-slate-100 shadow-md"
                 }`}
-                title={isListening ? "Listening..." : "Voice Input"}
               >
-                {isListening ? <MicOff size={18} /> : <Mic size={18} />}
-              </button>
+                <div className="whitespace-pre-wrap">{m.content}</div>
+              </div>
+            </div>
+          ))}
 
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder={isListening ? "Listening to voice..." : "Message Kyro or type / for slash commands..."}
-                rows={1}
-                className="flex-1 resize-none bg-surface border border-border rounded px-4 py-2.5 text-sm outline-none focus:border-accent"
-              />
+          {isGenerating && (
+            <div className="flex items-center gap-2 text-xs font-mono text-amber-400 bg-[#121522] border border-[#22283a] rounded-xl p-3 max-w-xs">
+              <Sparkles className="w-4 h-4 animate-spin" />
+              <span>Kyro is synthesizing response...</span>
+            </div>
+          )}
+
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* ── 3. Bottom Floating Chat Input Bar ───────────────────────────────── */}
+        <footer className="p-4 border-t border-[#1b202e] bg-[#0c0e14] flex justify-center">
+          <div className="w-full max-w-3xl bg-[#121522] border border-[#242b3d] focus-within:border-amber-500/60 rounded-2xl p-2 shadow-2xl flex flex-col transition-all">
+            <textarea
+              rows={2}
+              value={inputPrompt}
+              onChange={(e) => setInputPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              placeholder="Ask Kyro AI anything or type a prompt..."
+              className="w-full bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none p-2 resize-none font-sans"
+            />
+
+            <div className="flex items-center justify-between pt-2 px-2 border-t border-[#1a1f2e] text-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="p-1.5 hover:bg-[#1c2235] text-slate-400 hover:text-white rounded-lg transition-colors"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  className="p-1.5 hover:bg-[#1c2235] text-slate-400 hover:text-white rounded-lg transition-colors"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+                <span className="text-[11px] font-mono text-slate-500 border-l border-[#1a1f2e] pl-2">
+                  {MODELS.find((m) => m.id === selectedModel)?.name}
+                </span>
+              </div>
 
               <button
-                onClick={() => sendMessage()}
-                disabled={isStreaming || (!input.trim() && attachments.length === 0)}
-                className="p-2.5 rounded bg-accent text-ink disabled:opacity-40"
+                onClick={() => handleSendMessage()}
+                disabled={!inputPrompt.trim() || isGenerating}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md"
               >
-                <Send size={18} />
+                <span>Send</span>
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </footer>
+      </div>
+
+      {/* ── 4. Modals (Pro+ Key, Prompts, Share) ─────────────────────────────── */}
+
+      {/* Pro+ Key Modal */}
+      {showProKeyModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#121522] border border-[#242b3d] rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setShowProKeyModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 text-amber-400 font-bold font-display text-lg">
+              <Key className="w-5 h-5" /> Pro+ API Key Manager
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Configure your personal Kyro Pro+ API key for unlimited request throughput across OpenAI SDK & REST endpoints.
+            </p>
+            <div className="space-y-2">
+              <label className="text-xs font-mono text-slate-300">Active API Key</label>
+              <div className="bg-[#090b10] border border-[#242b3d] rounded-lg p-2.5 font-mono text-xs text-amber-300 flex items-center justify-between">
+                <span>kyro_sk_live_9f82a1738192</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText("kyro_sk_live_9f82a1738192");
+                    setCopiedApiKey(true);
+                    setTimeout(() => setCopiedApiKey(false), 2000);
+                  }}
+                  className="text-slate-400 hover:text-white"
+                >
+                  {copiedApiKey ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowProKeyModal(false)}
+                className="px-4 py-2 bg-amber-500 text-slate-950 font-bold rounded-lg text-xs"
+              >
+                Done
               </button>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Feature 1: Claude-Style Artifact Canvas Side Drawer */}
-        {isCanvasOpen && canvasCode && (
-          <div className="w-1/2 border-l border-border bg-surface flex flex-col h-full shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-raised">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-semibold text-accent uppercase">{canvasLang} Artifact Canvas</span>
-                <div className="flex border border-border rounded overflow-hidden text-xs">
-                  <button
-                    onClick={() => setCanvasTab("preview")}
-                    className={`px-3 py-1 ${canvasTab === "preview" ? "bg-accent text-ink font-medium" : "text-muted hover:text-text"}`}
-                  >
-                    Preview
-                  </button>
-                  <button
-                    onClick={() => setCanvasTab("code")}
-                    className={`px-3 py-1 ${canvasTab === "code" ? "bg-accent text-ink font-medium" : "text-muted hover:text-text"}`}
-                  >
-                    Source Code
-                  </button>
-                  <button
-                    onClick={() => {
-                      setCanvasTab("terminal");
-                      if (terminalLogs.length === 0) executeInBrowserTerminal();
-                    }}
-                    className={`px-3 py-1 ${canvasTab === "terminal" ? "bg-accent text-ink font-medium" : "text-muted hover:text-text"}`}
-                  >
-                    WebTerminal
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const gistPayload = JSON.stringify(
-                      {
-                        description: "Generated artifact snippet by Kyro AI",
-                        public: true,
-                        files: { [`snippet.${canvasLang}`]: { content: canvasCode } },
-                      },
-                      null,
-                      2
-                    );
-                    navigator.clipboard.writeText(gistPayload);
-                    alert("GitHub Gist payload copied to clipboard! You can paste this directly into the GitHub API or Gist editor.");
-                  }}
-                  className="flex items-center gap-1 text-xs text-muted hover:text-text border border-border px-2.5 py-1 rounded bg-surface transition-colors"
-                  title="Export Canvas snippet to GitHub Gist payload"
-                >
-                  <Github size={13} /> Gist
-                </button>
-                <button onClick={() => setIsCanvasOpen(false)} className="text-muted hover:text-text p-1 rounded">
-                  <X size={16} />
-                </button>
-              </div>
+      {/* Prompts Library Modal */}
+      {showPromptsModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#121522] border border-[#242b3d] rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setShowPromptsModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 text-white font-bold font-display text-lg">
+              <BookOpen className="w-5 h-5 text-amber-400" /> Prompt Preset Library
             </div>
-
-            <div className="flex-1 overflow-auto p-4 bg-ink">
-              {canvasTab === "preview" ? (
-                <iframe
-                  title="Canvas Live Preview"
-                  srcDoc={canvasCode}
-                  className="w-full h-full min-h-[400px] border-0 bg-white rounded shadow-sm"
-                  sandbox="allow-scripts allow-modals"
-                />
-              ) : canvasTab === "code" ? (
-                <CodeBlock code={canvasCode} language={canvasLang} />
-              ) : (
-                <div className="flex flex-col h-full bg-[#0D0C11] p-4 space-y-3 font-mono text-xs rounded border border-border">
-                  <div className="flex items-center justify-between border-b border-border/60 pb-2">
-                    <div className="flex items-center gap-2 text-accent">
-                      <Terminal size={14} />
-                      <span>In-Browser WebContainer Terminal ({canvasLang})</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={executeInBrowserTerminal}
-                        className="px-2.5 py-1 bg-accent text-ink rounded font-semibold text-[11px] hover:opacity-90"
-                      >
-                        {isRunningCode ? "Executing..." : "Run Code"}
-                      </button>
-                      <button
-                        onClick={() => setTerminalLogs([])}
-                        className="px-2.5 py-1 border border-border text-muted hover:text-text rounded text-[11px]"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto space-y-1.5 p-3 bg-ink rounded border border-border/40 font-mono min-h-[300px]">
-                    {terminalLogs.length === 0 && <p className="text-muted italic">Click 'Run Code' to execute script in browser sandbox.</p>}
-                    {terminalLogs.map((log, idx) => (
-                      <div
-                        key={idx}
-                        className={
-                          log.type === "stderr"
-                            ? "text-danger"
-                            : log.type === "info"
-                            ? "text-accent font-semibold"
-                            : "text-emerald-400"
-                        }
-                      >
-                        {log.text}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Prompt Library Modal */}
-      {showPromptLibrary && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-lg max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-display text-lg text-text flex items-center gap-2">
-                <BookOpen size={18} className="text-accent" /> Prompt Template Library
-              </h3>
-              <button onClick={() => setShowPromptLibrary(false)} className="text-muted hover:text-text">
-                <X size={18} />
-              </button>
-            </div>
-
             <div className="space-y-2 max-h-80 overflow-y-auto">
-              {PROMPT_TEMPLATES.map((tmpl, i) => (
+              {PROMPTS.map((p, i) => (
                 <button
                   key={i}
                   onClick={() => {
-                    setInput(tmpl.prompt);
-                    setShowPromptLibrary(false);
+                    setInputPrompt(p);
+                    setShowPromptsModal(false);
                   }}
-                  className="w-full text-left p-3 rounded bg-surface-raised border border-border hover:border-accent space-y-1 transition-colors"
+                  className="w-full text-left p-3 bg-[#0a0c12] hover:bg-[#161a2b] border border-[#22283a] rounded-xl text-xs font-mono text-slate-300 hover:text-amber-300 transition-colors flex items-center justify-between"
                 >
-                  <p className="text-xs font-semibold text-accent">{tmpl.title}</p>
-                  <p className="text-xs text-muted line-clamp-2">{tmpl.prompt}</p>
+                  <span>{p}</span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
                 </button>
               ))}
             </div>
@@ -1211,198 +625,31 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Clarification Questions Modal */}
-      {showClarifyModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-lg max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-display text-lg text-text flex items-center gap-2">
-                <HelpCircle size={18} className="text-accent" /> Agent Clarification Questions
-              </h3>
-              <button onClick={() => setShowClarifyModal(false)} className="text-muted hover:text-text">
-                <X size={18} />
-              </button>
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#121522] border border-[#242b3d] rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setShowShareModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 text-white font-bold font-display text-lg">
+              <Share2 className="w-5 h-5 text-amber-400" /> Share Conversation
             </div>
-
-            <p className="text-xs text-muted">
-              To provide the highest quality output, please clarify your architectural preferences:
-            </p>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-muted mb-1 font-medium">1. Target Architecture</label>
-                <select
-                  value={clarifyAnswers.target}
-                  onChange={(e) => setClarifyAnswers({ ...clarifyAnswers, target: e.target.value })}
-                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
-                >
-                  <option value="REST API">REST API Endpoint</option>
-                  <option value="Full-Stack App">Full-Stack Web App</option>
-                  <option value="Microservice">Backend Microservice</option>
-                  <option value="CLI Tool">Command-Line CLI Tool</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-muted mb-1 font-medium">2. Language / Framework</label>
-                <select
-                  value={clarifyAnswers.framework}
-                  onChange={(e) => setClarifyAnswers({ ...clarifyAnswers, framework: e.target.value })}
-                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
-                >
-                  <option value="TypeScript / Node.js">TypeScript / Node.js (Next.js & Fastify)</option>
-                  <option value="Python / FastAPI">Python / FastAPI</option>
-                  <option value="Go / Fiber">Go / Fiber</option>
-                  <option value="Rust / Axum">Rust / Axum</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-muted mb-1 font-medium">3. Persistence / Database</label>
-                <select
-                  value={clarifyAnswers.database}
-                  onChange={(e) => setClarifyAnswers({ ...clarifyAnswers, database: e.target.value })}
-                  className="w-full bg-surface-raised border border-border rounded p-2 text-text outline-none focus:border-accent"
-                >
-                  <option value="PostgreSQL / Supabase">PostgreSQL / Supabase Prisma</option>
-                  <option value="MongoDB">MongoDB Mongoose</option>
-                  <option value="Redis Cache">Redis In-Memory Key-Value</option>
-                  <option value="SQLite">SQLite Local File</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end gap-2">
-              <button
-                onClick={() => setShowClarifyModal(false)}
-                className="px-3 py-1.5 rounded border border-border text-xs text-muted hover:text-text"
-              >
-                Cancel
-              </button>
+            <p className="text-xs text-slate-400">Generates a public read-only link to share this chat session.</p>
+            <div className="bg-[#090b10] border border-[#242b3d] rounded-lg p-2.5 font-mono text-xs text-cyan-300 flex items-center justify-between">
+              <span>https://kyro-web-rodh.onrender.com/share/c_92a18</span>
               <button
                 onClick={() => {
-                  setShowClarifyModal(false);
-                  sendMessage(pendingPrompt);
+                  navigator.clipboard.writeText("https://kyro-web-rodh.onrender.com/share/c_92a18");
+                  setCopiedShare(true);
+                  setTimeout(() => setCopiedShare(false), 2000);
                 }}
-                className="px-4 py-1.5 rounded bg-accent text-ink text-xs font-semibold hover:opacity-90"
+                className="text-slate-400 hover:text-white"
               >
-                Proceed with Execution
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Global Code & Conversation Search Modal (Ctrl+K) */}
-      {showSearchModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20 p-4">
-          <div className="bg-surface border border-border rounded-lg max-w-2xl w-full p-4 space-y-3 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2 text-text font-medium text-sm">
-                <Search size={16} className="text-accent" />
-                <span>Global Code Snippet & Conversation Search</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono text-muted border border-border rounded px-1.5 py-0.5">Ctrl + K</span>
-                <button onClick={() => setShowSearchModal(false)} className="text-muted hover:text-text p-1">
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-
-            <div className="relative">
-              <input
-                type="text"
-                autoFocus
-                value={searchQuery}
-                onChange={(e) => performGlobalSearch(e.target.value)}
-                placeholder="Search across all historic code snippets & messages..."
-                className="w-full bg-surface-raised border border-border rounded p-2.5 text-sm outline-none focus:border-accent font-mono text-text pl-9"
-              />
-              <Search size={16} className="absolute left-3 top-3 text-muted" />
-            </div>
-
-            <div className="max-h-96 overflow-y-auto space-y-2 pt-1">
-              {isSearching && <p className="text-xs text-muted p-2">Searching code snippets & conversations...</p>}
-              {!isSearching && searchQuery && searchResults.length === 0 && (
-                <p className="text-xs text-muted p-2">No matching messages or code snippets found.</p>
-              )}
-              {searchResults.map((res) => (
-                <div
-                  key={res.id}
-                  onClick={() => {
-                    selectConversation(res.conversationId);
-                    setShowSearchModal(false);
-                  }}
-                  className="bg-surface-raised border border-border hover:border-accent rounded p-3 cursor-pointer space-y-1 transition-all"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-accent truncate">{res.title}</span>
-                    <span className="bg-surface border border-border px-1.5 py-0.5 rounded text-[10px] uppercase font-mono text-muted">
-                      {res.role}
-                    </span>
-                  </div>
-                  <p className="text-xs text-text/80 font-mono line-clamp-3 bg-surface/50 p-2 rounded border border-border/50">
-                    {res.content}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bring Your Own API Key (PRO+) Modal */}
-      {showKeyModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-border rounded-lg max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2 text-text font-medium text-sm">
-                <Key size={18} className="text-accent" />
-                <span>Bring Your Own API Key (Kyro PRO+)</span>
-              </div>
-              <button onClick={() => setShowKeyModal(false)} className="text-muted hover:text-text p-1">
-                <X size={16} />
-              </button>
-            </div>
-
-            <p className="text-xs text-muted leading-relaxed">
-              Enter your personal <code className="text-accent font-mono">Kyro API Key</code>, <code className="text-accent font-mono">Groq Key</code>, or custom key to unlock unlimited high-concurrency <strong>Kyro PRO+</strong> requests without global rate limit throttles.
-            </p>
-
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-muted">Custom API Key</label>
-              <input
-                type="password"
-                value={customApiKey}
-                onChange={(e) => saveCustomApiKey(e.target.value)}
-                placeholder="kyro_sk_live_... or gsk_..."
-                className="w-full bg-surface-raised border border-border rounded p-2.5 text-xs outline-none focus:border-accent font-mono text-text"
-              />
-            </div>
-
-            {customApiKey.trim() && (
-              <div className="p-2.5 rounded bg-success/10 border border-success/30 text-success text-xs font-medium flex items-center gap-2">
-                <Check size={14} /> PRO+ Custom Key Active & Saved locally
-              </div>
-            )}
-
-            <div className="flex justify-between items-center pt-2">
-              {customApiKey.trim() ? (
-                <button
-                  onClick={() => saveCustomApiKey("")}
-                  className="text-xs text-danger hover:underline"
-                >
-                  Clear Key
-                </button>
-              ) : (
-                <span className="text-[11px] text-muted">No custom key set (Using standard Tier)</span>
-              )}
-              <button
-                onClick={() => setShowKeyModal(false)}
-                className="px-4 py-1.5 rounded bg-accent text-ink text-xs font-semibold hover:opacity-90"
-              >
-                Save & Close
+                {copiedShare ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
           </div>

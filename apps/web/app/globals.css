@@ -9,21 +9,41 @@
 }
 
 body {
-  background-color: #111014;
-  color: #EDEBF0;
+  background-color: #0b0c10;
+  color: #f1f3f9;
+  overflow-x: hidden;
 }
 
 ::selection {
-  background-color: #F0A202;
-  color: #111014;
+  background-color: #f59e0b;
+  color: #0b0c10;
 }
 
-/* Visible keyboard focus, kept subtle but real */
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d0f17;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e2436;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333d59;
+}
+
+/* Focus outline */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid #F0A202;
+  outline: 2px solid #38bdf8;
   outline-offset: 2px;
 }
 

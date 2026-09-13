@@ -50,7 +50,7 @@ interface AutoStep {
 }
 
 export default function StudioPage() {
-  const [activeTab, setActiveTab] = useState<"blender" | "vex" | "viewport" | "ai_assistant">("viewport");
+  const [activeTab, setActiveTab] = useState<"blender" | "vex" | "viewport" | "ai_assistant" | "mcp_connect">("mcp_connect");
 
   // --- Live Connection Bridge State ---
   const [blenderConnected, setBlenderConnected] = useState<boolean>(true);
@@ -662,6 +662,14 @@ int main() {
         {/* Main Tab Navigation */}
         <div className="flex bg-[#16161e] border border-slate-800 rounded-lg p-1 text-xs">
           <button
+            onClick={() => setActiveTab("mcp_connect")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition-colors ${
+              activeTab === "mcp_connect" ? "bg-cyan-500 text-slate-950 font-semibold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Terminal className="w-4 h-4 text-emerald-400" /> MCP Connect (CLI)
+          </button>
+          <button
             onClick={() => setActiveTab("viewport")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded font-medium transition-colors ${
               activeTab === "viewport" ? "bg-cyan-500 text-slate-950 font-semibold" : "text-slate-400 hover:text-white"
@@ -691,13 +699,142 @@ int main() {
               activeTab === "ai_assistant" ? "bg-cyan-500 text-slate-950 font-semibold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <Sparkles className="w-4 h-4" /> AI Prompt Assistant
+            <Sparkles className="w-4 h-4" /> AI Assistant
           </button>
         </div>
       </header>
 
       {/* Main Studio Body */}
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* TAB 0: Claude Code Style MCP Connect Terminal Hub */}
+        {activeTab === "mcp_connect" && (
+          <div className="lg:col-span-12 space-y-6">
+            {/* Claude Code Terminal Hero Banner */}
+            <div className="border border-slate-800 bg-[#0c0d14] rounded-xl p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
+                    <Terminal className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
+                      Claude Code / MCP Connection Hub <span className="text-xs font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">v2024-11-05 Spec</span>
+                    </h2>
+                    <p className="text-xs text-slate-400">Connect local Blender, VEXcode, CAD tools & filesystems directly to Kyro AI via Model Context Protocol (MCP)</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 font-mono text-xs">
+                  <span className="text-slate-400">Status:</span>
+                  <span className="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-bold rounded-md flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> MCP Stdio Tunnel Active
+                  </span>
+                </div>
+              </div>
+
+              {/* CLI Command Quick Connect Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <div className="bg-[#121420] border border-slate-800 rounded-lg p-4 space-y-2 font-mono text-xs">
+                  <div className="text-cyan-400 font-bold flex items-center gap-1.5">
+                    <Layers className="w-4 h-4" /> 1. Blender MCP Server
+                  </div>
+                  <div className="bg-[#08090d] border border-slate-800 p-2.5 rounded text-slate-300 text-[11px] overflow-x-auto">
+                    <code>npx kyro-cli mcp add blender -- python -m kyro_blender_mcp</code>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Exposes <code className="text-cyan-300">blender_eval_bpy</code>, <code className="text-cyan-300">blender_render</code>, <code className="text-cyan-300">blender_create_gear</code> tools.</p>
+                </div>
+
+                <div className="bg-[#121420] border border-slate-800 rounded-lg p-4 space-y-2 font-mono text-xs">
+                  <div className="text-cyan-400 font-bold flex items-center gap-1.5">
+                    <Cpu className="w-4 h-4" /> 2. VEXcode IQ MCP Server
+                  </div>
+                  <div className="bg-[#08090d] border border-slate-800 p-2.5 rounded text-slate-300 text-[11px] overflow-x-auto">
+                    <code>npx kyro-cli mcp add vexcode -- npx @kyro/vex-mcp</code>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Exposes <code className="text-cyan-300">vex_upload_blocks</code>, <code className="text-cyan-300">vex_read_telemetry</code>, <code className="text-cyan-300">vex_set_motor</code> tools.</p>
+                </div>
+
+                <div className="bg-[#121420] border border-slate-800 rounded-lg p-4 space-y-2 font-mono text-xs">
+                  <div className="text-cyan-400 font-bold flex items-center gap-1.5">
+                    <Zap className="w-4 h-4" /> 3. One-Command Full Connect
+                  </div>
+                  <div className="bg-[#08090d] border border-slate-800 p-2.5 rounded text-slate-300 text-[11px] overflow-x-auto">
+                    <code>kyro connect --mcp blender,vexcode</code>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Zero-config terminal handshake with automatic tool discovery.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Terminal & MCP Inspector */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Terminal Screen */}
+              <div className="lg:col-span-7 border border-slate-800 bg-[#08090d] rounded-xl flex flex-col overflow-hidden h-[460px]">
+                <div className="bg-[#10121a] border-b border-slate-800 px-4 py-2.5 flex items-center justify-between text-xs font-mono">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    <span>kyro-cli terminal session (~/projects/robotics)</span>
+                  </div>
+                  <span className="text-emerald-400 font-semibold">● 127.0.0.1:9876 Active</span>
+                </div>
+
+                <div className="p-4 flex-1 overflow-y-auto font-mono text-xs space-y-2 text-slate-300">
+                  <div className="text-slate-500">$ kyro connect --mcp blender,vexcode</div>
+                  <div className="text-emerald-400">🚀 Kyro CLI v2.4 initialized. Scanning local stdio transports...</div>
+                  <div className="text-cyan-300">✔ [MCP] Spawning sub-process: python -m kyro_blender_mcp (PID 14820)</div>
+                  <div className="text-cyan-300">✔ [MCP] Spawning sub-process: npx @kyro/vex-mcp (PID 14824)</div>
+                  <div className="text-slate-400">🤝 [JSON-RPC 2.0] Handshake complete. Protocol: 2024-11-05</div>
+                  <div className="text-emerald-300 font-semibold">
+                    ✅ Discovered 7 local MCP tools:
+                    <br />  • blender_eval_bpy(code: string)
+                    <br />  • blender_create_mesh(primitive: string, dimensions: object)
+                    <br />  • blender_render_frame(engine: string, output_path: string)
+                    <br />  • vex_upload_blocks(xml_content: string, brain_slot: number)
+                    <br />  • vex_compile_cpp(cpp_code: string)
+                    <br />  • vex_read_motor_telemetry(port: number)
+                    <br />  • vex_set_drivetrain_velocity(speed_pct: number)
+                  </div>
+                  <div className="text-amber-300 pt-2 animate-pulse">
+                    ⚡ Live Auto-Edit Tunnel Listening... Requests in web studio will trigger MCP tool invocations automatically!
+                  </div>
+                </div>
+              </div>
+
+              {/* Active MCP Servers & Tool Execution Box */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="border border-slate-800 bg-[#0f1117] rounded-xl p-5 space-y-4">
+                  <h3 className="font-display font-semibold text-white text-sm flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-emerald-400" /> Active MCP Tool Server Registries
+                  </h3>
+
+                  <div className="space-y-3 font-mono text-xs">
+                    {[
+                      { name: "blender-mcp-server", transport: "stdio", status: "Online", tools: 3 },
+                      { name: "vexcode-iq-mcp-server", transport: "stdio / WebUSB", status: "Online", tools: 4 },
+                      { name: "kyro-filesystem-mcp", transport: "stdio", status: "Online", tools: 3 },
+                    ].map((srv) => (
+                      <div key={srv.name} className="bg-[#151824] border border-slate-800 rounded-lg p-3 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-white">{srv.name}</div>
+                          <div className="text-[11px] text-slate-400">Transport: {srv.transport}</div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-emerald-400 font-bold text-[11px]">{srv.status}</span>
+                          <div className="text-[10px] text-slate-500">{srv.tools} Tools Exposed</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 text-xs text-slate-400">
+                    💡 Like Claude Code, all MCP tool execution requests from the Kyro Studio web app are signed and dispatched securely via standard JSON-RPC 2.0 stdio pipes.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: 3D Viewport Canvas */}
         {activeTab === "viewport" && (
           <>

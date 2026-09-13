@@ -1,8 +1,10 @@
-# Kyro
+# Kyro AI Platform
 
-A production-ready AI platform: OpenAI-compatible API, developer portal, admin control panel, and a streaming web chat UI — all sitting in front of a self-hosted open-source model.
+A production-ready AI platform: OpenAI-compatible streaming API, Live Code Sandbox (`/sandbox`), Multi-Key Groq LPU pool with automatic failover, developer portal, admin control panel, and a responsive streaming web chat UI.
 
-## 1. Architecture Overview
+---
+
+## 1. Architecture & Feature Overview
 
 ```
                                    ┌─────────────────────┐
@@ -19,80 +21,85 @@ A production-ready AI platform: OpenAI-compatible API, developer portal, admin c
                                     │                        │        │  usage,config│
 ┌───────────────┐   Bearer          │  - Supabase JWT verify │        └──────────────┘
 │ 3rd-party Dev  │   kyro_sk_live_  │  - API key auth        │
-│ (OpenAI SDK)   │ ───────────────► │  - RBAC                │        ┌──────────────┐
+│ (OpenAI SDK)   │ ───────────────► │  - RBAC & Admin Bypass │        ┌──────────────┐
 └───────────────┘   /v1/chat/      │  - Token-bucket limits │◄──────►│    Redis     │
-                     completions   │  - Usage logging       │        │  rate limits,│
+                     completions   │  - Groq Multi-Key Pool │        │  rate limits,│
                                     └──────────┬─────────────┘        │  active      │
-                                              │ proxies + injects     │  system      │
-                                              │ active system prompt  │  prompt cache│
+                                              │ round-robin           │  system      │
+                                              │ failover retry        │  prompt cache│
                                               ▼                        └──────────────┘
                                    ┌──────────────────────┐
-                                   │  vLLM Inference Server │
-                                   │  (OpenAI-compatible)   │
-                                   │  Llama 3 / Mistral /   │
-                                   │  DeepSeek              │
+                                   │ Upstream Groq Cloud  │
+                                   │  LPU Inference Array │
+                                   │ Llama 3.3 70B /      │
+                                   │ Llama 3.1 8B / Qwen  │
                                    └──────────────────────┘
 ```
 
-**Request flow, `/v1/chat/completions`:**
-1. Caller sends a standard OpenAI-format request with `Authorization: Bearer kyro_sk_live_...`.
-2. The gateway hashes the key (SHA-256), looks it up in Postgres, confirms it's active, and resolves the owning user's tier.
-3. A Redis token-bucket check enforces the per-key/per-tier rate limit; on failure the gateway returns `429`.
-4. The gateway reads the **active system prompt + model + default hyperparameters** from a Redis cache (`system_config:active`), keyed by the Admin Panel — never a redeploy.
-5. The active system prompt is prepended as the first `system` message, then the request is forwarded to vLLM's OpenAI-compatible endpoint.
-6. Tokens stream back over Server-Sent Events, straight through to the caller.
-7. Usage (prompt/completion tokens, endpoint, latency) is logged asynchronously to `api_usage_logs`.
+### Key Platform Capabilities
+- **💻 Live Code Sandbox (`/sandbox`)**: In-browser interactive runner for JavaScript (Node VM), Python 3, and SQL engine with stdout/stderr execution metrics and AI Code Assist.
+- **⚡ Multi-Key Groq API Pool (`GROQ_API_KEYS`)**: Round-robin key rotation with automatic failover on 429 rate-limit and 401 auth errors.
+- **🔓 Admin Restriction Bypass**: Admin API keys and Admin role sessions automatically bypass rate limits (`X-RateLimit-Limit: unlimited`) and secret redaction filters.
+- **📈 Dynamic Status Monitor (`/status`)**: Real-time operational health checks, median p50 and tail p99 latency benchmarks across all nodes.
+- **🛡️ 24-Hour Secret Exposure Scanner (`/code-audit`)**: Automated audit tool scanning public commits, client bundles, and `.env` files for unmasked secrets.
 
-**Admin Panel writes**, they don't touch the inference server directly — they update `system_configs` in Postgres and publish the new value into the Redis cache (`system_config:active`), which every gateway instance reads on the next request. This is what makes persona/model swaps live without a redeploy.
+---
 
-**Web chat** authenticates end users via Supabase Auth (JWT), and calls the *same* `/v1/chat/completions` route as external developers, just via a first-party session instead of an API key — one code path, two auth mechanisms.
-
-## 2. Repo layout
+## 2. Repo Layout
 
 ```
 kyro/
 ├── docker-compose.yml
 ├── prisma/schema.prisma
 ├── apps/
-│   ├── api/     # Fastify API gateway
-│   └── web/     # Next.js frontend (chat, admin, dev portal, docs)
+│   ├── api/     # Fastify API gateway (routes: /v1/chat/completions, /v1/sandbox/*, /admin/*, /health)
+│   └── web/     # Next.js frontend (chat, sandbox, status, support, admin, dev portal, docs)
 ```
 
-## 3. Local development
+---
 
-Prerequisites: Docker + Docker Compose, Node 20+, a GPU host for vLLM (or point `INFERENCE_BASE_URL` at any OpenAI-compatible server, including Ollama, for CPU-only local dev).
+## 3. Environment Variables Reference
+
+### API (`apps/api/.env`)
+```env
+PORT=4000
+NODE_ENV=development
+DATABASE_URL=postgresql://...
+REDIS_URL=redis://localhost:6379
+
+# Upstream Groq Cloud LPU Engine
+INFERENCE_BASE_URL=https://api.groq.com/openai/v1
+INFERENCE_MODEL=llama-3.3-70b-versatile
+GROQ_API_KEYS=gsk_key1,gsk_key2,gsk_key3
+INFERENCE_API_KEY=gsk_key1
+
+# Rate Limits (requests per minute)
+RATE_LIMIT_FREE=20
+RATE_LIMIT_PRO=120
+RATE_LIMIT_ENTERPRISE=1000
+RATE_LIMIT_GUEST=8
+```
+
+### Web (`apps/web/.env.local`)
+```env
+NEXT_PUBLIC_API_BASE_URL=https://kyro-api-auou.onrender.com
+NEXT_PUBLIC_SUPABASE_URL=https://...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
+
+---
+
+## 4. Local Development
 
 ```bash
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env.local
-# fill in SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
+# 1. Install dependencies
+cd apps/api && npm install
+cd ../web && npm install
 
-docker compose up -d postgres redis vllm   # infra + model server
-cd apps/api && npm install && npx prisma migrate deploy && npm run dev
-cd apps/web && npm install && npm run dev
+# 2. Run local API & Web servers
+cd apps/api && npm run dev
+cd apps/web && npm run dev
 ```
 
-- API gateway: http://localhost:4000 (docs at `/docs`, OpenAPI JSON at `/openapi.json`)
-- Web app: http://localhost:3000
-
-### Swapping in Ollama for CPU-only dev
-
-`docker-compose.yml` ships a `vllm` service. For a laptop without a GPU, replace it with Ollama and set:
-
-```
-INFERENCE_BASE_URL=http://ollama:11434/v1
-INFERENCE_MODEL=llama3
-```
-
-The gateway only assumes an OpenAI-compatible `/v1/chat/completions` route — vLLM, TGI (with its OpenAI adapter), and Ollama all satisfy that.
-
-## 4. Deployment (cloud)
-
-- **Postgres**: managed instance (RDS/Cloud SQL/Supabase Postgres). Run `npx prisma migrate deploy` on release.
-- **Redis**: managed (ElastiCache/Upstash). Used for rate-limit token buckets and the live system-config cache only — treat it as disposable; on a cold cache the gateway falls back to the DB row.
-- **vLLM**: deploy on a GPU node (`vllm serve <model> --port 8000`) behind an internal load balancer; the gateway is the only service that talks to it.
-- **API gateway**: stateless — horizontally scale behind a load balancer. Set env vars from `.env.example`.
-- **Web app**: deploy to Vercel or as a Node server; point `NEXT_PUBLIC_API_BASE_URL` at the gateway.
-- Put a CDN/WAF in front of the gateway's public `/v1/*` routes; everything else (`/admin/*`, `/keys/*`) should require the Supabase session and is not meant for anonymous public traffic.
-
-See `docker-compose.yml` for a full local stack (Postgres, Redis, vLLM, API, web).
+- **API Gateway**: `http://localhost:4000` (docs at `/docs`)
+- **Web App**: `http://localhost:3000`

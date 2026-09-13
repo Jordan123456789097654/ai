@@ -115,12 +115,14 @@ async fn main() -> Result<(), Box<dyn std.error::Error>> {
 const ENDPOINTS = [
   { method: "POST", path: "/v1/chat/completions", desc: "OpenAI-compatible streaming chat completions", auth: "API Key / Bearer Token" },
   { method: "GET", path: "/v1/models", desc: "List currently active AI model details", auth: "Public" },
+  { method: "POST", path: "/v1/sandbox/execute", desc: "Execute JS, Python 3, or SQL code snippets in sandbox", auth: "Public" },
+  { method: "POST", path: "/v1/sandbox/ai-assist", desc: "AI code fix, optimization & explanation assistant", auth: "Public" },
   { method: "GET", path: "/me", desc: "Get user account profile, tier, and role", auth: "Session Token" },
   { method: "GET", path: "/keys", desc: "List all developer API keys for current account", auth: "Session Token" },
   { method: "POST", path: "/keys", desc: "Create a new API key with custom scopes & expiration", auth: "Session Token" },
   { method: "DELETE", path: "/keys/:keyId", desc: "Revoke an existing API key", auth: "Session Token" },
-  { method: "GET", path: "/keys/:keyId/usage", desc: "Get daily token usage and request analytics", auth: "Session Token" },
-  { method: "GET", path: "/health", desc: "System health check (Database & Redis status)", auth: "Public" },
+  { method: "GET", path: "/admin/groq-pool", desc: "Inspect Groq multi-key pool health & rotation state", auth: "Admin Session" },
+  { method: "GET", path: "/health", desc: "System health check (Database, Redis, Uptime)", auth: "Public" },
 ];
 
 const TIERS = [
@@ -130,11 +132,11 @@ const TIERS = [
 ];
 
 const ERROR_ROWS = [
-  { code: "401", meaning: "Unauthorized / Invalid Key / Expired", fix: "Check Authorization header (Bearer kyro_sk_live_...) or ensure key hasn't expired." },
+  { code: "401", meaning: "Unauthorized / Invalid Key / Expired", fix: "Check Authorization header (Bearer kyro_sk_live_...) or verify GROQ_API_KEYS." },
   { code: "403", meaning: "Forbidden / Account Suspended", fix: "Account suspended by administrator or non-admin attempting admin routes." },
   { code: "429", meaning: "Rate Limit Exceeded", fix: "Exceeded requests/min quota for your tier. Check X-RateLimit-Remaining header." },
   { code: "500", meaning: "Internal Gateway Error", fix: "Database or Redis cluster issue. Retry after exponential backoff." },
-  { code: "502", meaning: "Upstream Inference Provider Error", fix: "Cloud AI provider issue or invalid INFERENCE_API_KEY." },
+  { code: "502", meaning: "Upstream Inference Provider Error", fix: "Cloud AI provider issue or unconfigured GROQ_API_KEYS." },
 ];
 
 export default function DocsPage() {
@@ -189,13 +191,13 @@ export default function DocsPage() {
 
       {/* Model Specifications & Benchmarks */}
       <section>
-        <h2 className="font-display text-xl mb-4">Supported AI Models & Benchmarks</h2>
+        <h2 className="font-display text-xl mb-4">Supported AI Models & Upstream Engine Mapping</h2>
         <div className="border border-border rounded overflow-hidden text-sm">
           <table className="w-full text-left">
             <thead className="bg-surface text-muted text-xs">
               <tr>
                 <th className="px-4 py-2.5 font-normal">Model ID</th>
-                <th className="px-4 py-2.5 font-normal">Base Architecture</th>
+                <th className="px-4 py-2.5 font-normal">Upstream Target Engine</th>
                 <th className="px-4 py-2.5 font-normal">Context Window</th>
                 <th className="px-4 py-2.5 font-normal">Avg Speed</th>
                 <th className="px-4 py-2.5 font-normal">Primary Specialization</th>
@@ -203,43 +205,54 @@ export default function DocsPage() {
             </thead>
             <tbody className="divide-y divide-border">
               <tr className="hover:bg-surface-raised/40">
-                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-coder-pro</td>
-                <td className="px-4 py-3 font-mono text-xs text-text">Qwen 2.5 Coder 32B</td>
-                <td className="px-4 py-3 text-xs font-mono text-muted">128,000 tokens</td>
-                <td className="px-4 py-3 text-xs font-mono text-success">~420 tok/s</td>
-                <td className="px-4 py-3 text-xs text-muted">Full-stack coding, unit tests, refactoring</td>
-              </tr>
-              <tr className="hover:bg-surface-raised/40">
                 <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-ultra-70b</td>
                 <td className="px-4 py-3 font-mono text-xs text-text">Llama 3.3 70B Versatile</td>
                 <td className="px-4 py-3 text-xs font-mono text-muted">128,000 tokens</td>
                 <td className="px-4 py-3 text-xs font-mono text-success">~290 tok/s</td>
-                <td className="px-4 py-3 text-xs text-muted">Complex reasoning, logic, architecture</td>
+                <td className="px-4 py-3 text-xs text-muted">Complex reasoning, logic, architecture & deep chat</td>
+              </tr>
+              <tr className="hover:bg-surface-raised/40">
+                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-coder-pro</td>
+                <td className="px-4 py-3 font-mono text-xs text-text">Llama 3.3 70B Versatile</td>
+                <td className="px-4 py-3 text-xs font-mono text-muted">128,000 tokens</td>
+                <td className="px-4 py-3 text-xs font-mono text-success">~420 tok/s</td>
+                <td className="px-4 py-3 text-xs text-muted">Full-stack coding, unit tests, refactoring & sandbox</td>
               </tr>
               <tr className="hover:bg-surface-raised/40">
                 <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-flash-8b</td>
                 <td className="px-4 py-3 font-mono text-xs text-text">Llama 3.1 8B Instant</td>
                 <td className="px-4 py-3 text-xs font-mono text-muted">128,000 tokens</td>
                 <td className="px-4 py-3 text-xs font-mono text-success">~680 tok/s</td>
-                <td className="px-4 py-3 text-xs text-muted">Ultra-fast real-time completions</td>
+                <td className="px-4 py-3 text-xs text-muted">Ultra-fast real-time completions & autocomplete</td>
               </tr>
               <tr className="hover:bg-surface-raised/40">
-                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-mixtral-8x7b</td>
-                <td className="px-4 py-3 font-mono text-xs text-text">Mixtral 8x7B Instruct</td>
+                <td className="px-4 py-3 font-mono font-semibold text-accent">deepseek-r1-distill-llama-70b</td>
+                <td className="px-4 py-3 font-mono text-xs text-text">DeepSeek R1 Reasoning 70B</td>
+                <td className="px-4 py-3 text-xs font-mono text-muted">128,000 tokens</td>
+                <td className="px-4 py-3 text-xs font-mono text-success">~320 tok/s</td>
+                <td className="px-4 py-3 text-xs text-muted">Step-by-step chain-of-thought mathematical reasoning</td>
+              </tr>
+              <tr className="hover:bg-surface-raised/40">
+                <td className="px-4 py-3 font-mono font-semibold text-accent">qwen-qwq-32b</td>
+                <td className="px-4 py-3 font-mono text-xs text-text">Qwen QwQ 32B Reasoning</td>
                 <td className="px-4 py-3 text-xs font-mono text-muted">32,768 tokens</td>
-                <td className="px-4 py-3 text-xs font-mono text-success">~380 tok/s</td>
-                <td className="px-4 py-3 text-xs text-muted">High-capacity mixture of experts</td>
-              </tr>
-              <tr className="hover:bg-surface-raised/40">
-                <td className="px-4 py-3 font-mono font-semibold text-accent">kyro-gemma-9b</td>
-                <td className="px-4 py-3 font-mono text-xs text-text">Gemma 2 9B IT</td>
-                <td className="px-4 py-3 text-xs font-mono text-muted">8,192 tokens</td>
-                <td className="px-4 py-3 text-xs font-mono text-success">~550 tok/s</td>
-                <td className="px-4 py-3 text-xs text-muted">Strict instruction following</td>
+                <td className="px-4 py-3 text-xs font-mono text-success">~450 tok/s</td>
+                <td className="px-4 py-3 text-xs text-muted">Algorithmic problem solving & logic synthesis</td>
               </tr>
             </tbody>
           </table>
         </div>
+      </section>
+
+      {/* Multi-Key Pool & High Availability */}
+      <section className="border border-border rounded-lg bg-surface p-6 space-y-3">
+        <h2 className="font-display text-xl">Multi-Key Groq Pool & High Availability</h2>
+        <p className="text-sm text-muted">
+          Kyro uses a round-robin multi-key pool (<code className="text-accent bg-surface-raised px-1 py-0.5 rounded">GROQ_API_KEYS</code>) with automatic 429 (rate-limit) and 401 (auth) failover rotation. Requests are distributed across all configured keys to maximize per-minute token throughput.
+        </p>
+        <p className="text-sm text-muted">
+          Admin API keys and Admin role sessions automatically bypass token-bucket rate limits (<code className="text-accent bg-surface-raised px-1 py-0.5 rounded">X-RateLimit-Limit: unlimited</code>) and secret redaction filters.
+        </p>
       </section>
 
       {/* Rate Limits & Tiers */}
@@ -249,36 +262,40 @@ export default function DocsPage() {
           {TIERS.map((tier) => (
             <div key={tier.name} className="border border-border bg-surface rounded p-4 space-y-2">
               <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-text">{tier.name}</h3>
-                <span className="text-xs text-accent font-mono">{tier.price}</span>
+                <span className="font-semibold text-text">{tier.name}</span>
+                <span className="text-xs font-mono text-accent font-bold">{tier.price}</span>
               </div>
-              <p className="text-2xl font-bold font-mono text-accent">{tier.limit}</p>
+              <p className="text-xs font-mono text-success">{tier.limit}</p>
               <p className="text-xs text-muted">{tier.features}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* REST API Endpoint Reference */}
-      <section>
-        <h2 className="font-display text-xl mb-4">REST API Endpoint Reference</h2>
+      {/* API Endpoint Reference */}
+      <section className="space-y-4">
+        <h2 className="font-display text-xl">API Endpoint Reference</h2>
         <div className="border border-border rounded overflow-hidden text-sm">
-          <table className="w-full">
-            <thead className="bg-surface text-muted text-left">
+          <table className="w-full text-left">
+            <thead className="bg-surface text-muted text-xs">
               <tr>
                 <th className="px-4 py-2.5 font-normal">Method</th>
-                <th className="px-4 py-2.5 font-normal">Endpoint</th>
+                <th className="px-4 py-2.5 font-normal">Endpoint Path</th>
                 <th className="px-4 py-2.5 font-normal">Description</th>
-                <th className="px-4 py-2.5 font-normal">Auth Required</th>
+                <th className="px-4 py-2.5 font-normal">Authentication</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border font-mono text-xs">
               {ENDPOINTS.map((ep) => (
-                <tr key={ep.path + ep.method} className="border-t border-border align-top">
-                  <td className="px-4 py-3 font-mono text-accent font-semibold">{ep.method}</td>
-                  <td className="px-4 py-3 font-mono text-text">{ep.path}</td>
-                  <td className="px-4 py-3 text-muted">{ep.desc}</td>
-                  <td className="px-4 py-3 text-xs font-mono text-muted">{ep.auth}</td>
+                <tr key={ep.path} className="hover:bg-surface-raised/40">
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded font-bold ${ep.method === "POST" ? "bg-accent/20 text-accent" : ep.method === "DELETE" ? "bg-danger/20 text-danger" : "bg-success/20 text-success"}`}>
+                      {ep.method}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-text">{ep.path}</td>
+                  <td className="px-4 py-3 font-sans text-muted">{ep.desc}</td>
+                  <td className="px-4 py-3 font-sans text-muted">{ep.auth}</td>
                 </tr>
               ))}
             </tbody>
@@ -286,79 +303,28 @@ export default function DocsPage() {
         </div>
       </section>
 
-      {/* SSE Streaming Protocol Reference */}
-      <section className="space-y-3">
-        <h2 className="font-display text-xl">Streaming Response Protocol (SSE)</h2>
-        <p className="text-sm text-muted">
-          When <code className="text-accent font-mono">"stream": true</code> is set in POST /v1/chat/completions, Kyro streams delta content using Server-Sent Events (SSE).
-        </p>
-        <div className="bg-surface border border-border rounded p-4 font-mono text-xs text-text space-y-1">
-          <p className="text-muted">// Chunk response format</p>
-          <p>{'data: {"id":"chatcmpl-123","choices":[{"delta":{"content":"Hello"}}]}'}</p>
-          <p>{'data: {"id":"chatcmpl-123","choices":[{"delta":{"content":" world"}}]}'}</p>
-          <p className="text-muted mt-2">// End of stream marker</p>
-          <p className="text-accent">data: [DONE]</p>
-        </div>
-      </section>
-
-      {/* Status & Error Codes */}
-      <section>
-        <h2 className="font-display text-xl mb-4">HTTP Status & Error Codes</h2>
+      {/* HTTP Status Code Reference */}
+      <section className="space-y-4">
+        <h2 className="font-display text-xl">HTTP Status Codes & Diagnostics</h2>
         <div className="border border-border rounded overflow-hidden text-sm">
-          <table className="w-full">
-            <thead className="bg-surface text-muted text-left">
+          <table className="w-full text-left">
+            <thead className="bg-surface text-muted text-xs">
               <tr>
-                <th className="px-4 py-2.5 font-normal">Code</th>
-                <th className="px-4 py-2.5 font-normal">Meaning</th>
-                <th className="px-4 py-2.5 font-normal">Resolution</th>
+                <th className="px-4 py-2.5 font-normal">HTTP Code</th>
+                <th className="px-4 py-2.5 font-normal">Meaning & Cause</th>
+                <th className="px-4 py-2.5 font-normal">Resolution Step</th>
               </tr>
             </thead>
-            <tbody>
-              {ERROR_ROWS.map((row) => (
-                <tr key={row.code} className="border-t border-border align-top">
-                  <td className="px-4 py-3 font-mono text-accent font-semibold">{row.code}</td>
-                  <td className="px-4 py-3 text-text font-medium">{row.meaning}</td>
-                  <td className="px-4 py-3 text-muted">{row.fix}</td>
+            <tbody className="divide-y divide-border text-xs">
+              {ERROR_ROWS.map((err) => (
+                <tr key={err.code} className="hover:bg-surface-raised/40">
+                  <td className="px-4 py-3 font-mono font-bold text-accent">{err.code}</td>
+                  <td className="px-4 py-3 text-text">{err.meaning}</td>
+                  <td className="px-4 py-3 text-muted">{err.fix}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      </section>
-
-      {/* Hosted Discord & Slack Bot Setup Guide */}
-      <section className="space-y-4">
-        <h2 className="font-display text-xl">Hosted Discord & Slack Bot Setup Guide</h2>
-        <p className="text-sm text-muted">
-          Connect your custom Discord or Slack bots to Kyro AI cloud infrastructure in 2 minutes:
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div className="border border-border bg-surface rounded p-4 space-y-2">
-            <h3 className="font-bold text-accent font-mono text-sm">🤖 Discord Bot Webhook Setup</h3>
-            <p className="text-muted">1. Go to Discord Developer Portal ➔ Create App.</p>
-            <p className="text-muted">2. Set Interactions URL to: <code className="text-text font-mono">https://kyro-api-auou.onrender.com/webhooks/discord</code>.</p>
-            <p className="text-muted">3. Or enter your Bot Secret Token on the <a href="/dev" className="text-accent hover:underline">Developer Portal</a> to host with custom commands.</p>
-          </div>
-          <div className="border border-border bg-surface rounded p-4 space-y-2">
-            <h3 className="font-bold text-accent font-mono text-sm">💬 Slack Bot Webhook Setup</h3>
-            <p className="text-muted">1. Go to Slack API Portal ➔ Create App.</p>
-            <p className="text-muted">2. Set Event Subscriptions Request URL to: <code className="text-text font-mono">https://kyro-api-auou.onrender.com/webhooks/slack</code>.</p>
-            <p className="text-muted">3. Enable slash commands (<code className="text-text font-mono">/kyro</code>) and channel mentions (<code className="text-text font-mono">@Kyro</code>).</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Kyro CLI Executable Guide */}
-      <section className="space-y-3">
-        <h2 className="font-display text-xl">Kyro CLI Terminal Tool (<code className="text-accent font-mono">kyro-cli</code>)</h2>
-        <p className="text-sm text-muted">
-          Pipe log files, run quick terminal prompts, and refactor code directly from your terminal:
-        </p>
-        <div className="bg-surface border border-border rounded p-4 font-mono text-xs text-text space-y-2">
-          <p className="text-muted">// Direct terminal completion</p>
-          <p className="text-accent">npx kyro "Build a high-performance Express REST API server"</p>
-          <p className="text-muted mt-2">// Pipe log files to analyze errors</p>
-          <p className="text-accent">cat server.log | npx kyro "Explain error and provide bug fix"</p>
         </div>
       </section>
     </div>

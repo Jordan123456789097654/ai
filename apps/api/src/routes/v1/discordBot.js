@@ -151,12 +151,21 @@ router.post("/giveaways/end", (req, res) => {
   return res.json({ success: true, giveaway });
 });
 
+// GET /v1/discord/ai-commands - Fetch registered AI Slash Commands
+router.get("/ai-commands", (req, res) => {
+  return res.json({ success: true, commands: discordBot.getAiCommands() });
+});
+
 // POST /v1/discord/ai-create-command - AI Dynamic Self-Command Creator
 router.post("/ai-create-command", async (req, res) => {
   const { prompt } = req.body || {};
   if (!prompt) return res.status(400).json({ error: "prompt required" });
-  const command = await discordBot.generateAndRegisterCommand(prompt);
-  return res.json({ success: true, command });
+  try {
+    const command = await discordBot.generateAndRegisterCommand(prompt);
+    return res.json({ success: true, command });
+  } catch (err) {
+    return res.status(500).json({ error: `Failed to create command: ${err.message}` });
+  }
 });
 
 // GET /v1/discord/oauth/authorize - Returns official Discord OAuth2 Authorization URL

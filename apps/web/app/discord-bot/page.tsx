@@ -476,14 +476,16 @@ export default function OwnerDiscordSuitePage() {
         body: JSON.stringify({ prompt: aiCmdPrompt }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+      if (res.ok && data.command) {
         setSlashCommands((prev) => [...prev, data.command]);
         setAiCmdStatus(`✅ AI created & registered command /${data.command.name}: "${data.command.description}"`);
         setAiCmdPrompt("");
+      } else {
+        setAiCmdStatus(`⚠️ Error creating AI command: ${data.error || data.message || "Failed to create command"}`);
       }
     } catch (err: any) {
-      setAiCmdStatus(`⚠️ Error creating AI command: ${err.message}`);
+      setAiCmdStatus(`⚠️ Error creating AI command: ${err.message || "Network request failed"}`);
     } finally {
       setIsGeneratingAiCmd(false);
     }
@@ -568,8 +570,24 @@ export default function OwnerDiscordSuitePage() {
     }
   };
 
+  const fetchAiCommands = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/ai-commands`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.commands && data.commands.length > 0) {
+          setSlashCommands(data.commands);
+        }
+      }
+    } catch {
+      // Fallback to default state
+    }
+  };
+
   useEffect(() => {
     fetchBotStatus();
+    fetchAiCommands();
   }, []);
 
   const handleStartBot = async () => {

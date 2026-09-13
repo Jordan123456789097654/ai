@@ -91,6 +91,14 @@ class DiscordBotManager {
       ],
     ]);
 
+    // Registered AI Slash Commands Store
+    this.aiCommands = [
+      { name: "kyro-ask", description: "Ask Kyro AI any question" },
+      { name: "kyro-code", description: "Generate production code snippets" },
+      { name: "kyro-fix", description: "Auto-fix code syntax & runtime errors" },
+      { name: "kyro-3d", description: "Generate Blender 3D scripts & VEXcode IQ routines" },
+    ];
+
     // Live Status Embed Auto-Updater Engine
     this.liveEmbedConfig = {
       enabled: true,
@@ -848,6 +856,18 @@ class DiscordBotManager {
     return giveaway;
   }
 
+  getAiCommands() {
+    if (!this.aiCommands) {
+      this.aiCommands = [
+        { name: "kyro-ask", description: "Ask Kyro AI any question" },
+        { name: "kyro-code", description: "Generate production code snippets" },
+        { name: "kyro-fix", description: "Auto-fix code syntax & runtime errors" },
+        { name: "kyro-3d", description: "Generate Blender 3D scripts & VEXcode IQ routines" },
+      ];
+    }
+    return this.aiCommands;
+  }
+
   // --- AI Self-Command Creator ---
   async generateAndRegisterCommand(prompt) {
     this.log(`🤖 [AI COMMAND CREATOR] Synthesizing slash command for prompt: "${prompt}"...`);
@@ -856,21 +876,47 @@ class DiscordBotManager {
     let cmdDesc = "Custom AI slash command";
 
     try {
-      const response = await callInference([
-        { role: "system", content: "Extract a concise slash command name (alphanumeric with hyphens, lowercase) and description from the user prompt. Return JSON: {\"name\": \"...\", \"description\": \"...\"}" },
-        { role: "user", content: prompt },
+      const response = await Promise.race([
+        callInference([
+          { role: "system", content: "Extract a concise slash command name (alphanumeric with hyphens, lowercase, max 20 chars) and description from the prompt. Return strict JSON: {\"name\": \"...\", \"description\": \"...\"}" },
+          { role: "user", content: prompt },
+        ]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("AI Timeout")), 5000)),
       ]);
 
       const parsed = JSON.parse(response.content.replace(/```json|```/g, "").trim());
-      if (parsed.name) cmdName = parsed.name.toLowerCase().replace(/[^a-z0-9-]/g, "");
-      if (parsed.description) cmdDesc = parsed.description;
+      if (parsed.name) cmdName = parsed.name.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 25);
+      if (parsed.description) cmdDesc = parsed.description.slice(0, 100);
     } catch {
-      // Fallback extraction
-      cmdName = `kyro-${prompt.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10)}`;
+      // Robust Fallback extraction
+      const cleanWords = prompt.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/).filter(Boolean);
+      const keyWord = cleanWords.find((w) => w.length > 3 && !["create", "slash", "command", "fetches", "that"].includes(w)) || "custom";
+      cmdName = `kyro-${keyWord.slice(0, 15)}`;
+      cmdDesc = prompt.length > 80 ? `${prompt.slice(0, 77)}...` : prompt;
     }
 
+    if (!cmdName.startsWith("kyro-")) cmdName = `kyro-${cmdName}`;
+
     const newCmd = { name: cmdName, description: cmdDesc };
+    if (!this.aiCommands) this.aiCommands = [];
     this.aiCommands.push(newCmd);
+
+    // Live Discord REST API v10 Registration
+    const tokenToUse = this.token || env.discordBotToken;
+    const appId = this.botInfo?.id || env.discordClientId || "1548576579872100374";
+    if (tokenToUse && appId) {
+      try {
+        await fetch(`https://discord.com/api/v10/applications/${appId}/commands`, {
+          method: "POST",
+          headers: { Authorization: `Bot ${tokenToUse}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: cmdName, description: cmdDesc, type: 1 }),
+        });
+        this.log(`🚀 [DISCORD REST API v10] Slash command /${cmdName} registered live with Discord!`);
+      } catch (err) {
+        this.log(`⚠️ Live Discord command registration note: ${err.message}`);
+      }
+    }
+
     this.log(`📜 [AI COMMAND CREATED] Registered new command /${cmdName}: "${cmdDesc}"`);
     return newCmd;
   }

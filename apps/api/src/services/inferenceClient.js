@@ -15,16 +15,6 @@ function getNextKey() {
   return key;
 }
 
-/**
- * Returns the key at a specific index (for retry-with-next-key logic).
- * Wraps around safely.
- */
-function getKeyAtIndex(idx) {
-  const pool = env.groqKeyPool;
-  if (pool.length === 0) return env.inferenceApiKey || null;
-  return pool[idx % pool.length];
-}
-
 // In-memory cache of live available models from the provider
 let cachedProviderModels = null;
 let lastModelFetchTime = 0;
@@ -43,13 +33,13 @@ const PREFERRED_MODEL_KEYWORDS = [
  * Dynamically queries the upstream OpenAI-compatible provider (Groq) for
  * its currently active text generation model list, prioritizing standard LLMs.
  */
-async function fetchAvailableModels() {
+async function fetchAvailableModels(customKey) {
   const now = Date.now();
   if (cachedProviderModels && now - lastModelFetchTime < 300000) {
     return cachedProviderModels;
   }
 
-  const key = getNextKey();
+  const key = customKey || getNextKey();
   try {
     const res = await fetch(`${env.inferenceBaseUrl}/models`, {
       headers: {
@@ -94,15 +84,10 @@ async function fetchAvailableModels() {
 }
 
 /**
- * Calls the OpenAI-compatible cloud inference provider (Groq) using the
- * next key in the round-robin pool.
- *
- * On 429 (rate limited), automatically retries with successive keys in the
- * pool until all keys have been tried or a success is received.
- *
- * On 404/400 model errors, falls back to a live-discovered model.
+ * Calls the OpenAI-compatible cloud inference provider (Groq) using key pool or custom user key.
+ * Rotates to the next available key in the pool on 429 (rate-limit) or 401 (auth error).
  */
-export async function callInference({ messages, model, temperature, topP, maxTokens, stream }) {
+export async function callInference({ messages, model, temperature, topP, maxTokens, stream, userApiKey }) {
   let primaryModel = model || env.inferenceModel || "llama-3.3-70b-versatile";
 
   // Specialized coding model mapping
@@ -111,31 +96,49 @@ export async function callInference({ messages, model, temperature, topP, maxTok
   }
 
   const pool = env.groqKeyPool;
-  const poolSize = pool.length || 1; // at least 1 attempt even with single/no key
+  // If user passed a custom Groq API key (e.g. starting with gsk_), prioritize it
+  const keyList = userApiKey ? [userApiKey, ...pool] : pool.length > 0 ? pool : [env.inferenceApiKey].filter(Boolean);
+  const poolSize = keyList.length || 1;
 
-  // ── Round-robin + 429 retry across all keys ──────────────────────────────
-  // Record the starting key index so we know when we've lapped the full pool
-  const startingIndex = keyIndex;
   let triedKeys = 0;
 
   while (triedKeys < poolSize) {
-    const currentKey = getNextKey();
-    const keySlot = triedKeys + 1; // 1-based for logging
+    const currentKey = userApiKey && triedKeys === 0 ? userApiKey : getNextKey();
+    const keySlot = triedKeys + 1;
     triedKeys++;
 
-    console.log(`[inference] Attempt ${keySlot}/${poolSize} — key slot ${keyIndex === 0 ? poolSize : keyIndex}/${poolSize}`);
+    console.log(`[inference] Attempt ${keySlot}/${poolSize} with model ${primaryModel}`);
 
-    let response = await makeRequest(primaryModel, { messages, temperature, topP, maxTokens, stream }, currentKey);
+    let response;
+    try {
+      response = await makeRequest(primaryModel, { messages, temperature, topP, maxTokens, stream }, currentKey);
+    } catch (netErr) {
+      console.error(`[inference] Network error connecting to inference gateway:`, netErr.message);
+      if (triedKeys < poolSize) continue;
+      const err = new Error(`Inference connection failed: ${netErr.message}`);
+      err.status = 502;
+      throw err;
+    }
 
     // ── 429 Rate Limited: try next key in pool ────────────────────────────
     if (response.status === 429) {
       const retryAfter = response.headers.get("retry-after");
-      console.warn(`[inference] Key slot ${keySlot} hit 429 rate limit (retry-after: ${retryAfter ?? "N/A"}s). Rotating to next key...`);
-      if (triedKeys < poolSize) continue; // loop to next key
+      console.warn(`[inference] Key slot ${keySlot} hit 429 rate limit (${retryAfter ?? "N/A"}s). Trying next key...`);
+      if (triedKeys < poolSize) continue;
 
-      // All keys exhausted — return the 429 to surface the real error
-      const err = new Error(`All ${poolSize} Groq API key(s) are rate-limited (429). Add more keys via GROQ_API_KEYS.`);
+      const err = new Error(`All ${poolSize} Groq API key(s) are rate-limited (429). Please add more keys via GROQ_API_KEYS.`);
       err.status = 429;
+      throw err;
+    }
+
+    // ── 401 Unauthorized: key is invalid or expired ───────────────────────
+    if (response.status === 401) {
+      const bodyText = await response.text().catch(() => "");
+      console.warn(`[inference] Key slot ${keySlot} returned 401 Unauthorized: ${bodyText}. Trying next key...`);
+      if (triedKeys < poolSize) continue;
+
+      const err = new Error(`Groq API key authentication failed (401 Unauthorized). Please verify GROQ_API_KEYS or INFERENCE_API_KEY in Render. Details: ${bodyText || "Invalid API key"}`);
+      err.status = 401;
       throw err;
     }
 
@@ -151,15 +154,14 @@ export async function callInference({ messages, model, temperature, topP, maxTok
         text.includes("does not exist") ||
         text.includes("do not have access")
       ) {
-        console.warn(`[inference] Model '${primaryModel}' unavailable. Querying live models from provider...`);
+        console.warn(`[inference] Model '${primaryModel}' unavailable. Querying live active models from provider...`);
 
-        const liveModels = await fetchAvailableModels();
+        const liveModels = await fetchAvailableModels(currentKey);
 
         for (const liveModel of liveModels) {
           if (liveModel === primaryModel) continue;
 
           console.log(`[inference] Retrying completion with active live model: '${liveModel}'`);
-          // Reuse the same key that just worked for the models list
           const fbResponse = await makeRequest(liveModel, { messages, temperature, topP, maxTokens, stream }, currentKey);
           if (fbResponse.ok) {
             return fbResponse;
@@ -167,7 +169,7 @@ export async function callInference({ messages, model, temperature, topP, maxTok
         }
       }
 
-      const err = new Error(`Inference server error (${response.status}): ${await response.text().catch(() => "")}`);
+      const err = new Error(`Inference server error (${response.status}): ${text || "Provider error"}`);
       err.status = response.status;
       throw err;
     }
@@ -175,8 +177,7 @@ export async function callInference({ messages, model, temperature, topP, maxTok
     return response;
   }
 
-  // Should not normally reach here
-  const err = new Error("Inference request failed after exhausting all retry strategies.");
+  const err = new Error("Inference request failed after exhausting all available keys.");
   err.status = 502;
   throw err;
 }
@@ -201,7 +202,6 @@ async function makeRequest(modelName, { messages, temperature, topP, maxTokens, 
 
 /**
  * Returns sanitized pool diagnostics (key count, current rotation index)
- * without exposing actual key values — safe to surface in admin endpoints.
  */
 export function getKeyPoolStats() {
   const pool = env.groqKeyPool;

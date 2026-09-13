@@ -66,20 +66,29 @@ export default async function chatCompletionsRoute(fastify) {
         maxTokens: maxTokens ?? config.defaultMaxTokens,
       };
 
+      const authHeader = request.headers.authorization || "";
+      const rawToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+      const customGroqKey =
+        request.headers["x-groq-api-key"] ||
+        request.body?.userApiKey ||
+        (rawToken.startsWith("gsk_") ? rawToken : undefined);
+
       let upstream;
       try {
         upstream = await callInference({
           messages: sanitizedMessages,
           ...effective,
           stream: !!stream,
+          userApiKey: customGroqKey,
         });
       } catch (err) {
         request.log.error(err, "inference call failed");
-        return reply.code(502).send({
+        const statusCode = err.status || 502;
+        return reply.code(statusCode).send({
           error: {
-            message: err.message || "Inference server unavailable. Please check INFERENCE_API_KEY in Render.",
-            type: "upstream_error",
-            code: 502,
+            message: err.message || "Inference server error. Please check your Groq API key (GROQ_API_KEYS / INFERENCE_API_KEY).",
+            type: statusCode === 401 ? "authentication_error" : "upstream_error",
+            code: statusCode,
           },
         });
       }

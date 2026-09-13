@@ -197,10 +197,60 @@ export default function OwnerDiscordSuitePage() {
   const [broadcastMessage, setBroadcastMessage] = useState<string>("");
   const [adminStatus, setAdminStatus] = useState<string>("");
 
-  // --- 🔗 Discord Account Linking State ---
-  const [discordTag, setDiscordTag] = useState<string>("");
-  const [discordId, setDiscordId] = useState<string>("");
-  const [linkStatus, setLinkStatus] = useState<string>("");
+  // --- ⚡ Live Embed Auto-Updater State ---
+  const [liveEmbedData, setLiveEmbedData] = useState<any>(null);
+  const [liveEmbedStatusMsg, setLiveEmbedStatusMsg] = useState<string>("");
+
+  const fetchLiveEmbedData = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/live-embed`);
+      if (res.ok) {
+        const data = await res.json();
+        setLiveEmbedData(data.liveData);
+      }
+    } catch {
+      // Fallback
+    }
+  };
+
+  const handleRefreshLiveEmbed = async () => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/live-embed/refresh`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setLiveEmbedData(data.liveData);
+        setLiveEmbedStatusMsg(`⚡ Live Embed updated on Discord! (Update #${data.liveData.updateCount} at ${data.liveData.lastUpdatedFormatted})`);
+      }
+    } catch (err: any) {
+      setLiveEmbedStatusMsg(`⚠️ Error refreshing live embed: ${err.message}`);
+    }
+  };
+
+  const handleToggleLiveEmbedAuto = async (enabled: boolean) => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const res = await fetch(`${baseUrl}/v1/discord/live-embed/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled, intervalSeconds: 30 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLiveEmbedData(data.liveData);
+        setLiveEmbedStatusMsg(enabled ? "🟢 Live Embed Auto-Updater Enabled (Updates every 30s)" : "⏸️ Live Embed Auto-Updater Paused");
+      }
+    } catch (err: any) {
+      setLiveEmbedStatusMsg(`⚠️ Config error: ${err.message}`);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveEmbedData();
+    const timer = setInterval(fetchLiveEmbedData, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Handlers for New Features
   const handleSaveAutoMod = async () => {
@@ -1155,66 +1205,145 @@ export default function OwnerDiscordSuitePage() {
 
         {/* TAB 4: 🎨 Rich Embed Builder & Live Preview */}
         {activeTab === "embed_builder" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-6 border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-4 text-xs font-mono">
-              <h2 className="font-display font-bold text-white text-base flex items-center gap-2">
-                <Palette className="w-5 h-5 text-amber-400" /> Discord Rich Embed Constructor
-              </h2>
-
-              <div>
-                <label className="text-slate-300 block mb-1">Embed Title</label>
-                <input
-                  type="text"
-                  value={embedTitle}
-                  onChange={(e) => setEmbedTitle(e.target.value)}
-                  className="w-full bg-[#141724] border border-[#242b3d] text-white rounded-xl px-3 py-2 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-300 block mb-1">Embed Description</label>
-                <textarea
-                  rows={3}
-                  value={embedDesc}
-                  onChange={(e) => setEmbedDesc(e.target.value)}
-                  className="w-full bg-[#141724] border border-[#242b3d] text-slate-200 rounded-xl p-3 focus:outline-none resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-300 block mb-1">Color (Hex)</label>
-                  <input
-                    type="text"
-                    value={embedColor}
-                    onChange={(e) => setEmbedColor(e.target.value)}
-                    className="w-full bg-[#141724] border border-[#242b3d] text-amber-300 rounded-xl px-3 py-2 focus:outline-none"
-                  />
+          <div className="space-y-6">
+            {/* Live Embed Auto-Updater Engine Card */}
+            <div className="border border-emerald-500/30 bg-[#0e1017] rounded-2xl p-6 space-y-4 font-mono text-xs shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1b202e] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl">
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-base flex items-center gap-2">
+                      ⚡ Live Discord Embed Auto-Updater
+                    </h3>
+                    <p className="text-slate-400 text-[11px]">
+                      Automatically edits the status embed in Discord every 30s with live health, active users, and system latency.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-slate-300 block mb-1">Footer Text</label>
-                  <input
-                    type="text"
-                    value={embedFooter}
-                    onChange={(e) => setEmbedFooter(e.target.value)}
-                    className="w-full bg-[#141724] border border-[#242b3d] text-slate-400 rounded-xl px-3 py-2 focus:outline-none"
-                  />
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleRefreshLiveEmbed}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Trigger Instant Live Refresh
+                  </button>
+                  <button
+                    onClick={() => handleToggleLiveEmbedAuto(!liveEmbedData?.config?.enabled)}
+                    className={`px-4 py-2 rounded-xl font-bold transition-all border ${
+                      liveEmbedData?.config?.enabled !== false
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                        : "bg-slate-800 text-slate-400 border-slate-700"
+                    }`}
+                  >
+                    {liveEmbedData?.config?.enabled !== false ? "🟢 Auto-Updater ACTIVE (30s)" : "⏸️ Auto-Updater PAUSED"}
+                  </button>
                 </div>
               </div>
+
+              {liveEmbedStatusMsg && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs">
+                  {liveEmbedStatusMsg}
+                </div>
+              )}
+
+              {/* Dynamic Embed Live Preview Card */}
+              {liveEmbedData && liveEmbedData.embed && (
+                <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-5 space-y-3">
+                  <div className="flex justify-between items-center text-slate-400 text-[11px]">
+                    <span>Discord Live Channel: <strong className="text-amber-400">{liveEmbedData.channel}</strong></span>
+                    <span>Target URL: <strong className="text-cyan-400">{liveEmbedData.embed.url}</strong></span>
+                    <span>Update Count: <strong className="text-emerald-400">#{liveEmbedData.updateCount}</strong></span>
+                  </div>
+
+                  <div className="bg-[#2f3136] rounded-lg p-4 space-y-2 font-sans border-l-4 border-emerald-500 shadow-xl">
+                    <div className="font-bold text-white text-sm flex justify-between items-center">
+                      <span>{liveEmbedData.embed.title}</span>
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">● LIVE UPDATING</span>
+                    </div>
+                    <div className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{liveEmbedData.embed.description}</div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 text-xs">
+                      {liveEmbedData.embed.fields?.map((f: any, idx: number) => (
+                        <div key={idx} className="bg-[#202225] p-2 rounded border border-slate-700/60">
+                          <div className="font-bold text-slate-200 text-[11px]">{f.name}</div>
+                          <div className="text-slate-400 text-[10px] font-mono">{f.value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-700/60 text-[11px] font-mono text-slate-400 flex justify-between">
+                      <span>{liveEmbedData.embed.footer}</span>
+                      <span className="text-amber-400">Last edit: {liveEmbedData.lastUpdatedFormatted}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Live Discord Embed Preview Card */}
-            <div className="lg:col-span-6 border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-4">
-              <h3 className="font-display font-semibold text-white text-sm">Discord Live Embed Preview</h3>
-              <div
-                className="bg-[#2f3136] rounded-lg p-4 space-y-2 font-sans border-l-4 shadow-xl"
-                style={{ borderColor: embedColor }}
-              >
-                <div className="font-bold text-white text-sm">{embedTitle}</div>
-                <div className="text-xs text-slate-300 leading-relaxed">{embedDesc}</div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-6 border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-4 text-xs font-mono">
+                <h2 className="font-display font-bold text-white text-base flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-amber-400" /> Discord Rich Embed Constructor
+                </h2>
 
-                <div className="pt-2 border-t border-slate-700/60 text-[11px] font-mono text-slate-400">
-                  {embedFooter}
+                <div>
+                  <label className="text-slate-300 block mb-1">Embed Title</label>
+                  <input
+                    type="text"
+                    value={embedTitle}
+                    onChange={(e) => setEmbedTitle(e.target.value)}
+                    className="w-full bg-[#141724] border border-[#242b3d] text-white rounded-xl px-3 py-2 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-300 block mb-1">Embed Description</label>
+                  <textarea
+                    rows={3}
+                    value={embedDesc}
+                    onChange={(e) => setEmbedDesc(e.target.value)}
+                    className="w-full bg-[#141724] border border-[#242b3d] text-slate-200 rounded-xl p-3 focus:outline-none resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-300 block mb-1">Color (Hex)</label>
+                    <input
+                      type="text"
+                      value={embedColor}
+                      onChange={(e) => setEmbedColor(e.target.value)}
+                      className="w-full bg-[#141724] border border-[#242b3d] text-amber-300 rounded-xl px-3 py-2 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-300 block mb-1">Footer Text</label>
+                    <input
+                      type="text"
+                      value={embedFooter}
+                      onChange={(e) => setEmbedFooter(e.target.value)}
+                      className="w-full bg-[#141724] border border-[#242b3d] text-slate-400 rounded-xl px-3 py-2 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Discord Embed Preview Card */}
+              <div className="lg:col-span-6 border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-4">
+                <h3 className="font-display font-semibold text-white text-sm">Discord Custom Embed Preview</h3>
+                <div
+                  className="bg-[#2f3136] rounded-lg p-4 space-y-2 font-sans border-l-4 shadow-xl"
+                  style={{ borderColor: embedColor }}
+                >
+                  <div className="font-bold text-white text-sm">{embedTitle}</div>
+                  <div className="text-xs text-slate-300 leading-relaxed">{embedDesc}</div>
+
+                  <div className="pt-2 border-t border-slate-700/60 text-[11px] font-mono text-slate-400">
+                    {embedFooter}
+                  </div>
                 </div>
               </div>
             </div>

@@ -264,4 +264,23 @@ router.post("/link-account", (req, res) => {
   });
 });
 
+// GET /v1/discord/live-embed - Fetch dynamic status embed payload
+router.get("/live-embed", (req, res) => {
+  const liveData = discordBot.getDynamicStatusEmbed();
+  return res.json({ success: true, liveData, config: discordBot.liveEmbedConfig });
+});
+
+// POST /v1/discord/live-embed/refresh - Manually trigger an instant live embed update
+router.post("/live-embed/refresh", (req, res) => {
+  const refreshedData = discordBot.refreshLiveEmbed();
+  return res.json({ success: true, message: "Live status embed refreshed!", liveData: refreshedData });
+});
+
+// POST /v1/discord/live-embed/config - Configure live embed auto-updater interval and state
+router.post("/live-embed/config", (req, res) => {
+  const { enabled, intervalSeconds, channel } = req.body || {};
+  const updatedData = discordBot.configureLiveEmbed({ enabled, intervalSeconds, channel });
+  return res.json({ success: true, message: "Live status embed configuration updated!", liveData: updatedData });
+});
+
 export default router;

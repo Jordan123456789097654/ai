@@ -1111,6 +1111,12 @@ export default function OwnerDiscordSuitePage() {
                     <Palette className="w-4 h-4" /> Deployed Rich Embeds
                   </h3>
                   <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+                    <div className="p-3 bg-[#08090d] border border-emerald-500/30 rounded-lg space-y-1">
+                      <div className="text-emerald-400 font-bold text-[11px]">🟢 Live System Status & Uptime</div>
+                      <div className="text-slate-400 text-[10px]">Posted in: #announcements</div>
+                      <p className="text-slate-300 text-[10px] pt-1">Connects to: <span className="text-amber-400 font-mono">https://kyro-web-rodh.onrender.com/status</span></p>
+                    </div>
+
                     <div className="p-3 bg-[#08090d] border border-amber-500/30 rounded-lg space-y-1">
                       <div className="text-amber-400 font-bold text-[11px]">📜 Terms of Service & Guidelines</div>
                       <div className="text-slate-400 text-[10px]">Posted in: #rules-and-tos</div>

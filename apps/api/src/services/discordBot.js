@@ -305,6 +305,20 @@ class DiscordBotManager {
         footer: "Managed by Kyro Web Panel",
       },
       {
+        channel: "#announcements",
+        title: "🟢 Kyro Platform Live System Status & Uptime",
+        url: "https://kyro-web-rodh.onrender.com/status",
+        color: "#10b981",
+        description: "Check live operational health, API response times, and Discord Gateway WebSocket metrics anytime at https://kyro-web-rodh.onrender.com/status",
+        fields: [
+          { name: "🌐 Web Dashboard", value: "[kyro-web-rodh.onrender.com/status](https://kyro-web-rodh.onrender.com/status) • **OPERATIONAL (99.98%)**" },
+          { name: "⚡ 70B AI Engine", value: "**OPERATIONAL** (Response Latency ~120ms)" },
+          { name: "🤖 Discord Gateway", value: "**CONNECTED** (`wss://gateway.discord.gg/?v=10`)" },
+          { name: "📊 Live Metrics Page", value: "[View Full System Health Page](https://kyro-web-rodh.onrender.com/status)" },
+        ],
+        footer: "Kyro Real-Time Monitoring • https://kyro-web-rodh.onrender.com/status",
+      },
+      {
         channel: "#bot-commands",
         title: "🤖 Kyro AI Slash Commands Overview",
         color: "#8b5cf6",

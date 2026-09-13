@@ -130,6 +130,8 @@ fastify.get("/health", async (_request, reply) => {
     status: healthy ? "ok" : "degraded",
     db,
     cache,
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
   });
 });
 

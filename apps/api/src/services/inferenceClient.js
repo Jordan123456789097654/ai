@@ -15,39 +15,12 @@ function getNextKey() {
   return key;
 }
 
-// Known decommissioned / invalid model IDs on Groq
-const DECOMMISSIONED_MODELS = [
-  "qwen-2.5-coder-32b",
-  "kyro-ultra-70b",
-  "kyro-coder-pro",
-  "kyro-flash-8b",
-  "kyro-pro",
-  "kyro-fast",
-  "kyro-reasoner",
-  "llama2-70b-4096",
-  "mixtral-8x7b-32768",
-  "gemma-7b-it",
-  "llama-3-70b-8192",
-  "llama-3-8b-8192",
-];
-
-const PREFERRED_MODEL_KEYWORDS = [
-  "llama-3.3-70b",
-  "llama-3.1-8b",
-  "llama-3.3",
-  "llama-3.1",
-  "qwen",
-  "deepseek",
-  "gemma",
-];
-
 // In-memory cache of live available models from the provider
 let cachedProviderModels = null;
 let lastModelFetchTime = 0;
 
 /**
- * Dynamically queries the upstream OpenAI-compatible provider (Groq) for
- * its currently active text generation model list.
+ * Dynamically queries the upstream provider for its currently active text generation model list.
  */
 async function fetchAvailableModels(customKey) {
   const now = Date.now();
@@ -68,76 +41,71 @@ async function fetchAvailableModels(customKey) {
       if (Array.isArray(data?.data)) {
         const allIds = data.data.map((m) => m.id);
 
-        // Filter out non-text and decommissioned models
+        // Filter out audio / whisper / safeguard models
         const textModels = allIds.filter(
           (id) =>
             !id.toLowerCase().includes("whisper") &&
             !id.toLowerCase().includes("safeguard") &&
             !id.toLowerCase().includes("orpheus") &&
-            !id.toLowerCase().includes("guard") &&
-            !DECOMMISSIONED_MODELS.some((d) => id.toLowerCase().includes(d))
+            !id.toLowerCase().includes("guard")
         );
 
-        // Sort by preferred chat LLM keywords
-        textModels.sort((a, b) => {
-          const scoreA = PREFERRED_MODEL_KEYWORDS.findIndex((k) => a.toLowerCase().includes(k));
-          const scoreB = PREFERRED_MODEL_KEYWORDS.findIndex((k) => b.toLowerCase().includes(k));
-          const aVal = scoreA === -1 ? 99 : scoreA;
-          const bVal = scoreB === -1 ? 99 : scoreB;
-          return aVal - bVal;
-        });
-
-        cachedProviderModels = textModels.length > 0 ? textModels : ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
-        lastModelFetchTime = now;
-        console.log("[inference] Active live models on Groq provider:", cachedProviderModels);
-        return cachedProviderModels;
+        if (textModels.length > 0) {
+          cachedProviderModels = textModels;
+          lastModelFetchTime = now;
+          console.log("[inference] Active live models on provider:", cachedProviderModels);
+          return cachedProviderModels;
+        }
       }
     }
   } catch (err) {
     console.warn("[inference] Could not fetch live models list from provider:", err.message);
   }
 
-  return ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+  return ["groq/compound", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 }
 
-/** Maps Kyro custom model aliases to valid Groq provider models */
-function resolveGroqModel(requestedModel) {
-  if (!requestedModel || typeof requestedModel !== "string") {
+/** Maps Kyro model requests to active live models on the provider */
+async function resolveModelToUse(requestedModel, customKey) {
+  const liveModels = await fetchAvailableModels(customKey);
+
+  if (!liveModels || liveModels.length === 0) {
     return "llama-3.3-70b-versatile";
   }
 
-  const norm = requestedModel.toLowerCase().trim();
-
-  // Fast / lightweight models
-  if (norm.includes("flash") || norm.includes("fast") || norm.includes("8b")) {
-    return "llama-3.1-8b-instant";
+  // 1. Exact match in live models
+  if (requestedModel && liveModels.includes(requestedModel)) {
+    return requestedModel;
   }
 
-  // Ultra / Pro / Reasoner / Coder / Default models
-  if (
-    norm.includes("kyro") ||
-    norm.includes("ultra") ||
-    norm.includes("coder") ||
-    norm.includes("pro") ||
-    norm.includes("reasoner") ||
-    norm.includes("70b") ||
-    norm.includes("32b")
-  ) {
-    return "llama-3.3-70b-versatile";
+  const norm = (requestedModel || "").toLowerCase().trim();
+
+  // 2. Keyword matching against live models list
+  if (norm.includes("fast") || norm.includes("flash") || norm.includes("mini") || norm.includes("8b")) {
+    const fastMatch = liveModels.find((m) => m.includes("mini") || m.includes("8b") || m.includes("fast") || m.includes("instant"));
+    if (fastMatch) return fastMatch;
   }
 
-  // If already a valid provider model string (e.g. llama-3.3-70b-versatile), pass through
-  return requestedModel;
+  // 3. Ultra / Pro / Default matching
+  const preferredMatch = liveModels.find(
+    (m) =>
+      m.includes("compound") ||
+      m.includes("llama-3.3") ||
+      m.includes("70b") ||
+      m.includes("120b") ||
+      m.includes("qwen") ||
+      m.includes("gpt")
+  );
+
+  return preferredMatch || liveModels[0];
 }
 
 /**
- * Calls the OpenAI-compatible cloud inference provider (Groq) using key pool or custom user key.
+ * Calls the OpenAI-compatible cloud inference provider using key pool or custom user key.
  * Rotates to the next available key in the pool on 429 (rate-limit) or 401 (auth error).
- * Automatically fails over to an active live model if the requested model is decommissioned or returns 400/404.
+ * Automatically fails over to active live models if the primary model returns 400/404.
  */
 export async function callInference({ messages, model, temperature, topP, maxTokens, stream, userApiKey }) {
-  let primaryModel = resolveGroqModel(model || env.inferenceModel);
-
   const pool = env.groqKeyPool;
   const keyList = userApiKey ? [userApiKey, ...pool] : pool.length > 0 ? pool : [env.inferenceApiKey].filter(Boolean);
   const poolSize = keyList.length || 1;
@@ -149,7 +117,10 @@ export async function callInference({ messages, model, temperature, topP, maxTok
     const keySlot = triedKeys + 1;
     triedKeys++;
 
-    console.log(`[inference] Attempt ${keySlot}/${poolSize} using model '${primaryModel}' (requested: '${model}')`);
+    // Dynamically resolve target model against provider's live supported models
+    const primaryModel = await resolveModelToUse(model || env.inferenceModel, currentKey);
+
+    console.log(`[inference] Attempt ${keySlot}/${poolSize} using target model '${primaryModel}' (requested: '${model}')`);
 
     let response;
     try {
@@ -184,7 +155,7 @@ export async function callInference({ messages, model, temperature, topP, maxTok
       throw err;
     }
 
-    // ── Model not found / 400 / 404: automatic model failover ──────────────
+    // ── Model not found / 400 / 404: automatic live model failover ─────────
     if (!response.ok) {
       const bodyText = await response.text().catch(() => "");
 
@@ -196,19 +167,22 @@ export async function callInference({ messages, model, temperature, topP, maxTok
         bodyText.includes("does not exist") ||
         bodyText.includes("do not have access")
       ) {
-        console.warn(`[inference] Model '${primaryModel}' unavailable (${bodyText}). Querying active live models from provider...`);
+        console.warn(`[inference] Model '${primaryModel}' unavailable (${bodyText}). Querying live active models...`);
 
         // Reset cached models to force fresh lookup
         cachedProviderModels = null;
         const liveModels = await fetchAvailableModels(currentKey);
 
         for (const liveModel of liveModels) {
-          if (liveModel === primaryModel || DECOMMISSIONED_MODELS.some((d) => liveModel.includes(d))) continue;
+          if (liveModel === primaryModel) continue;
 
           console.log(`[inference] Retrying completion with active live model: '${liveModel}'`);
           const fbResponse = await makeRequest(liveModel, { messages, temperature, topP, maxTokens, stream }, currentKey);
           if (fbResponse.ok) {
             return fbResponse;
+          } else {
+            const fbErrText = await fbResponse.text().catch(() => "");
+            console.warn(`[inference] Fallback model '${liveModel}' returned HTTP ${fbResponse.status}: ${fbErrText}`);
           }
         }
       }

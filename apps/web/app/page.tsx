@@ -24,6 +24,9 @@ export default function HomePage() {
           <Link href="/chat" className="px-5 py-2.5 bg-accent text-ink rounded font-medium hover:opacity-90 transition-opacity">
             Open Chat Interface
           </Link>
+          <Link href="/studio" className="px-5 py-2.5 bg-cyan-500 text-slate-950 rounded font-medium hover:bg-cyan-400 transition-colors flex items-center gap-2">
+            🚀 3D & Robotics Studio
+          </Link>
           <Link href="/docs" className="px-5 py-2.5 border border-border rounded font-medium hover:border-muted transition-colors">
             Read API Docs
           </Link>
@@ -59,6 +62,7 @@ export default function HomePage() {
           <div className="space-y-2">
             <h4 className="font-mono text-accent font-semibold uppercase tracking-wider text-[11px]">Developer Platform</h4>
             <ul className="space-y-1.5 text-muted font-mono text-[11px]">
+              <li><Link href="/studio" className="hover:text-text hover:underline text-cyan-400 font-semibold">🚀 3D & Robotics Studio</Link></li>
               <li><Link href="/docs" className="hover:text-text hover:underline">API Documentation</Link></li>
               <li><Link href="/dev" className="hover:text-text hover:underline">Developer Key Portal</Link></li>
               <li><Link href="/templates" className="hover:text-text hover:underline">SaaS Project Starters</Link></li>

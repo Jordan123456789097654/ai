@@ -78,7 +78,7 @@ export default function StudioPage() {
   const [copiedBlender, setCopiedBlender] = useState<boolean>(false);
 
   // --- VEX State ---
-  const [vexLanguage, setVexLanguage] = useState<"python" | "cpp">("python");
+  const [vexLanguage, setVexLanguage] = useState<"python" | "cpp" | "blocks">("python");
   const [copiedVex, setCopiedVex] = useState<boolean>(false);
   const [ports, setPorts] = useState<VexPortConfig[]>([
     { port: 1, deviceType: "smart_motor", name: "LeftDriveMotor", reversed: false, gearRatio: "18_1" },
@@ -517,6 +517,38 @@ int main() {
         wait(100, msec);
     }
 }`;
+    } else {
+      // VEXcode Blocks (.iqblocks JSON Schema)
+      const blocksProject = {
+        zipVersion: 1,
+        fileVersion: 1,
+        target: "iq",
+        robotConfig: ports.filter(p => p.deviceType !== "none").map(p => ({
+          name: p.name,
+          port: p.port,
+          type: p.deviceType,
+          reversed: p.reversed || false
+        })),
+        blocks: `<xml xmlns="https://developers.google.com/blockly/xml">
+  <block type="when_started" id="start" x="40" y="40">
+    <next>
+      <block type="set_motor_velocity">
+        <value font="80%"></value>
+        <next>
+          <block type="spin_motor_for">
+            <field name="DISTANCE">${autoSteps[0]?.value || 300}mm</field>
+          </block>
+        </next>
+      </block>
+    </next>
+  </block>
+</xml>`,
+        metadata: {
+          creator: "Kyro Robotics Studio AI",
+          created: new Date().toISOString()
+        }
+      };
+      return JSON.stringify(blocksProject, null, 2);
     }
   };
 
@@ -552,8 +584,9 @@ int main() {
   };
 
   const handleDownloadVex = () => {
-    const ext = vexLanguage === "python" ? "py" : "cpp";
-    const blob = new Blob([generateVexCode()], { type: "text/plain" });
+    const ext = vexLanguage === "python" ? "py" : vexLanguage === "cpp" ? "cpp" : "iqblocks";
+    const mime = vexLanguage === "blocks" ? "application/json" : "text/plain";
+    const blob = new Blob([generateVexCode()], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -896,6 +929,12 @@ int main() {
                     >
                       C++
                     </button>
+                    <button
+                      onClick={() => setVexLanguage("blocks")}
+                      className={`px-2.5 py-1 rounded ${vexLanguage === "blocks" ? "bg-cyan-500 text-slate-950 font-bold" : "text-slate-400"}`}
+                    >
+                      VEX Blocks
+                    </button>
                   </div>
                 </div>
 
@@ -943,7 +982,7 @@ int main() {
                 <div className="bg-[#141722] border-b border-slate-800 px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-mono text-slate-300">
                     <Bot className="w-4 h-4 text-cyan-400" />
-                    <span>VEXcode Program: <strong className="text-cyan-300">autonomous.{vexLanguage === "python" ? "py" : "cpp"}</strong></span>
+                    <span>VEXcode Program: <strong className="text-cyan-300">autonomous.{vexLanguage === "python" ? "py" : vexLanguage === "cpp" ? "cpp" : "iqblocks"}</strong></span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -963,15 +1002,52 @@ int main() {
                       onClick={handleDownloadVex}
                       className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold rounded text-xs flex items-center gap-1 font-mono transition-colors"
                     >
-                      <Download className="w-3.5 h-3.5" /> Download Code
+                      <Download className="w-3.5 h-3.5" /> Download Project
                     </button>
                   </div>
                 </div>
 
                 <div className="p-4 bg-[#0a0c10] flex-1 overflow-x-auto">
-                  <pre className="font-mono text-xs text-cyan-200/90 leading-relaxed">
-                    <code>{generateVexCode()}</code>
-                  </pre>
+                  {vexLanguage === "blocks" ? (
+                    <div className="space-y-4">
+                      <div className="text-xs font-mono text-slate-400 mb-2">🧩 VEXcode Blocks Visual Diagram Stack</div>
+                      <div className="space-y-2 font-mono text-xs max-w-lg">
+                        <div className="p-3 bg-amber-500 text-slate-950 font-bold rounded-t-lg border-l-4 border-amber-300 shadow-md">
+                          ⚡ WHEN STARTED
+                        </div>
+                        <div className="p-3 bg-blue-600 text-white font-semibold rounded-md border-l-4 border-blue-300 ml-4 shadow-md flex items-center justify-between">
+                          <span>set DriveVelocity to (80) %</span>
+                          <span className="text-[10px] bg-blue-700 px-2 py-0.5 rounded font-mono">DRIVETRAIN</span>
+                        </div>
+                        {autoSteps.map((step, idx) => (
+                          <div key={idx} className="p-3 bg-blue-600 text-white font-semibold rounded-md border-l-4 border-blue-300 ml-4 shadow-md flex items-center justify-between">
+                            <span>
+                              {step.action === "drive" && `spin LeftDriveMotor & RightDriveMotor forward for (${step.value}) mm`}
+                              {step.action === "turn" && `turn LeftDriveMotor forward for (${step.value}) deg`}
+                              {step.action === "motor_move" && `spin ${step.targetDevice || "ArmMotor"} for (${step.value}) deg`}
+                              {step.action === "sensor_wait" && `wait until (${step.targetDevice || "FrontDistanceSensor"} ${step.condition || "distance < 50mm"})`}
+                              {step.action === "wait" && `wait (${step.value}) ms`}
+                            </span>
+                            <span className="text-[10px] bg-blue-700 px-2 py-0.5 rounded font-mono uppercase">{step.action}</span>
+                          </div>
+                        ))}
+                        <div className="p-3 bg-rose-600 text-white font-semibold rounded-b-lg border-l-4 border-rose-300 ml-4 shadow-md">
+                          🛑 STOP ALL MOTORS
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-800">
+                        <div className="text-xs font-mono text-slate-400 mb-1">📄 .iqblocks Project JSON Schema Output</div>
+                        <pre className="font-mono text-[11px] text-cyan-200/80 leading-relaxed bg-[#06070a] p-3 rounded border border-slate-800">
+                          <code>{generateVexCode()}</code>
+                        </pre>
+                      </div>
+                    </div>
+                  ) : (
+                    <pre className="font-mono text-xs text-cyan-200/90 leading-relaxed">
+                      <code>{generateVexCode()}</code>
+                    </pre>
+                  )}
                 </div>
               </div>
             </div>

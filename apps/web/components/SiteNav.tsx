@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles, MessageSquare, Box, Bot, FileText, Activity, Key } from "lucide-react";
+import { Sparkles, MessageSquare, Box, Bot, FileText, Activity, Key, Crown } from "lucide-react";
 
 export default function SiteNav() {
   const pathname = usePathname();
 
   // Navigation Links
   const navItems = [
-    { href: "/chat", label: "Chat", icon: MessageSquare },
-    { href: "/discord-bot", label: "Discord Bot Panel", icon: Bot },
-    { href: "/docs", label: "Docs", icon: FileText },
+    { href: "/chat", label: "Chat Studio", icon: MessageSquare },
+    { href: "/discord-bot", label: "Discord Bot & Server Suite", icon: Bot },
+    { href: "/admin", label: "👑 Admin Panel", icon: Crown },
+    { href: "/beta", label: "Beta AI Suite", icon: Sparkles },
     { href: "/status", label: "Status", icon: Activity },
-    { href: "/dev", label: "Developer Portal", icon: Key },
+    { href: "/dev", label: "Dev Portal", icon: Key },
+    { href: "/docs", label: "Docs", icon: FileText },
   ];
 
   return (

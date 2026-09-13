@@ -195,6 +195,8 @@ export default function OwnerDiscordSuitePage() {
   // --- 👑 Admin Utilities & Lockdown State ---
   const [lockdownMode, setLockdownMode] = useState<boolean>(false);
   const [broadcastMessage, setBroadcastMessage] = useState<string>("");
+  const [adminStatus, setAdminStatus] = useState<string>("");
+
   // --- 🔗 Discord Account Linking State ---
   const [discordTag, setDiscordTag] = useState<string>("");
   const [discordId, setDiscordId] = useState<string>("");

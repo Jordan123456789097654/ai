@@ -12,6 +12,8 @@ class DiscordBotManager {
     this.guildCount = 1;
     this.ws = null;
     this.heartbeatInterval = null;
+    this.autoReconnect = true;
+    this.reconnectTimer = null;
     this.logs = [
       `[DISCORD BOT] Service initialized. Token status: ${this.token ? "CONFIGURED" : "NOT CONFIGURED"}`,
     ];
@@ -207,8 +209,17 @@ class DiscordBotManager {
 
   // --- Live Discord Gateway WebSocket Connection ---
   async connectGateway(token) {
+    if (!token) return;
+    const cleanToken = token.replace(/^Bot\s+/i, "").trim();
+
+    // Prevent duplicate parallel connection attempts
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
     try {
       this.log("🔌 Connecting to Discord Gateway WebSocket (wss://gateway.discord.gg)...");
+      this.status = "connecting";
       this.ws = new WebSocket("wss://gateway.discord.gg/?v=10&encoding=json");
 
       this.ws.on("open", () => {
@@ -235,7 +246,7 @@ class DiscordBotManager {
             const identifyPayload = {
               op: 2,
               d: {
-                token: token.replace(/^Bot\s+/i, "").trim(),
+                token: cleanToken,
                 intents: 32767,
                 properties: {
                   os: "Windows",
@@ -329,8 +340,19 @@ class DiscordBotManager {
       });
 
       this.ws.on("close", (code, reason) => {
-        this.log(`⏹️ Gateway WebSocket closed (${code}): ${reason || "Connection dropped"}`);
+        this.status = "stopped";
+        this.log(`⏹️ Gateway WebSocket closed (${code}): ${reason || "Connection dropped"}. Auto-reconnecting in 5s...`);
         if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+        this.ws = null;
+
+        if (this.autoReconnect) {
+          if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = setTimeout(() => {
+            this.log("🔄 [DISCORD BOT RECONNECTING] Re-establishing Gateway WebSocket...");
+            const tokenToUse = this.token || env.discordBotToken;
+            if (tokenToUse) this.connectGateway(tokenToUse).catch(() => {});
+          }, 5000);
+        }
       });
     } catch (err) {
       this.log(`❌ Failed to establish Gateway WebSocket: ${err.message}`);
@@ -634,20 +656,49 @@ class DiscordBotManager {
             });
             if (existingRoleRes.ok) {
               const existingRoles = await existingRoleRes.json();
-              this.log(`🧹 [SERVER CLEANUP] Purging pre-existing custom server roles...`);
+              this.log(`🧹 [SERVER CLEANUP] Found ${existingRoles.length} server roles. Purging pre-existing custom roles...`);
+              let deletedRoleCount = 0;
+              let rolePermissionWarning = false;
+
               for (const r of existingRoles) {
-                if (r.id !== guildId && !r.managed) {
+                const isManaged = Boolean(r.managed || r.tags?.bot_id || r.tags?.integration_id || r.tags?.premium_subscriber);
+                if (r.id !== guildId && !isManaged) {
                   try {
-                    await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${r.id}`, {
+                    let delRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${r.id}`, {
                       method: "DELETE",
                       headers: { Authorization: `Bot ${tokenToUse}` },
                     });
-                  } catch {
-                    // Ignore single role delete error
+
+                    if (delRes.status === 429) {
+                      const rateData = await delRes.json().catch(() => ({}));
+                      const waitMs = Math.max((rateData.retry_after || 1.5) * 1000, 1500);
+                      this.log(`⏳ [ROLE PURGE RATE LIMIT] Waiting ${waitMs}ms before retrying role "${r.name}"...`);
+                      await new Promise((res) => setTimeout(res, waitMs));
+                      delRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${r.id}`, {
+                        method: "DELETE",
+                        headers: { Authorization: `Bot ${tokenToUse}` },
+                      });
+                    }
+
+                    if (delRes.ok || delRes.status === 204) {
+                      deletedRoleCount++;
+                      this.log(`🧹 Deleted custom role "${r.name}" (ID: ${r.id}).`);
+                    } else {
+                      const errData = await delRes.text().catch(() => "");
+                      this.log(`⚠️ Could not delete role "${r.name}" (${delRes.status}): ${errData}`);
+                      if (delRes.status === 403) rolePermissionWarning = true;
+                    }
+                  } catch (err) {
+                    this.log(`⚠️ Exception deleting role "${r.name}": ${err.message}`);
                   }
+                  await new Promise((res) => setTimeout(res, 200));
                 }
               }
-              liveExecutionLog.push(`🧹 Server Cleaned: Purged pre-existing custom server roles.`);
+
+              liveExecutionLog.push(`🧹 Server Cleaned: Purged ${deletedRoleCount} pre-existing custom server roles.`);
+              if (rolePermissionWarning) {
+                liveExecutionLog.push(`⚠️ ROLE HIERARCHY NOTICE: Drag the @Kyro AI role to the TOP of Server Settings -> Roles in Discord so the bot can manage and delete all roles above it.`);
+              }
             }
           } catch (err) {
             this.log(`⚠️ Cleanup note: ${err.message}`);

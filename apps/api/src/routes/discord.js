@@ -9,41 +9,85 @@ import { validateAndStartBot, stopHostedBot, getActiveHostedBots } from "../serv
 export default async function discordRoute(fastify) {
   // ---- Webhook Interaction Handler ----
   fastify.post("/webhooks/discord", async (request, reply) => {
-    const { type, data, member } = request.body || {};
+    const { type, data, member, user, guild_id, token: interactionToken } = request.body || {};
+    // Type 1: PING from Discord for endpoint URL verification
     if (type === 1) return reply.send({ type: 1 });
 
-    const prompt = data?.options?.[0]?.value || data?.content || "Explain how Kyro AI works.";
-    const userHandle = member?.user?.username || "Discord User";
+    const userObj = member?.user || user;
+    const userHandle = userObj?.username || "Discord User";
+    const userId = userObj?.id;
 
-    try {
-      const upstream = await callInference({
-        messages: [
-          { role: "system", content: "You are Kyro AI Discord Assistant. Provide clean, concise markdown responses suitable for Discord chat." },
-          { role: "user", content: prompt },
-        ],
-        model: "kyro-coder-pro",
-        temperature: 0.7,
-        maxTokens: 1024,
-        stream: false,
-      });
+    // Type 3: MESSAGE_COMPONENT (Button Clicks, Select Menus)
+    if (type === 3) {
+      if (data?.custom_id === "create_ticket") {
+        // Trigger live ticket channel creation asynchronously
+        discordBot.createLiveTicketChannel(guild_id, userId, userHandle);
 
-      const json = await upstream.json();
-      const replyText = json.choices?.[0]?.message?.content || "No response generated.";
+        // Immediately respond within 3s with ephemeral message acknowledgment
+        return reply.send({
+          type: 4,
+          data: {
+            content: `🎟️ **Creating your private 1-on-1 support ticket...**`,
+            flags: 64, // Ephemeral
+          },
+        });
+      }
 
       return reply.send({
         type: 4,
-        data: {
-          content: `**[Kyro AI Response for @${userHandle}]:**\n\n${replyText}`,
-        },
-      });
-    } catch (err) {
-      return reply.send({
-        type: 4,
-        data: {
-          content: `⚠️ **Kyro AI Error:** ${err.message}`,
-        },
+        data: { content: `✅ Interaction acknowledged by Kyro Bot.`, flags: 64 },
       });
     }
+
+    // Type 2: APPLICATION_COMMAND (Slash Commands)
+    if (type === 2) {
+      const prompt = data?.options?.[0]?.value || data?.name || "Explain how Kyro AI works.";
+
+      // Send deferred response (Type 5) immediately so Discord NEVER times out with "The application didn't respond in time"
+      reply.send({ type: 5 });
+
+      // Execute AI completion asynchronously and patch original message
+      (async () => {
+        try {
+          const upstream = await callInference({
+            messages: [
+              { role: "system", content: "You are Kyro AI Discord Assistant. Provide clean, concise markdown responses suitable for Discord chat." },
+              { role: "user", content: prompt },
+            ],
+            model: "kyro-coder-pro",
+            temperature: 0.7,
+            maxTokens: 1024,
+            stream: false,
+          });
+
+          const json = await upstream.json();
+          const replyText = json.choices?.[0]?.message?.content || "No response generated.";
+          const appId = env.discordClientId || "1548576579872100374";
+
+          await fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: `**[Kyro AI Response for @${userHandle}]:**\n\n${replyText}`,
+            }),
+          });
+        } catch (err) {
+          const appId = env.discordClientId || "1548576579872100374";
+          await fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: `⚠️ **Kyro AI Error:** ${err.message}`,
+            }),
+          }).catch(() => {});
+        }
+      })();
+
+      return;
+    }
+
+    // Default fallback
+    return reply.send({ type: 1 });
   });
 
   // ---- Hosted Discord Bot Management API Endpoints ----

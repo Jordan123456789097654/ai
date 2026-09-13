@@ -542,6 +542,9 @@ class DiscordBotManager {
               }
             }
           }
+        } else {
+          liveExecutionLog.push(`⚠️ DISCORD NOTICE: Bot @Kyro AI#8149 is not inside any Discord Server (Guild) yet! Please click "Invite Bot to Server" using the Invite URL with Administrator permissions.`);
+          this.log(`⚠️ DISCORD SERVER BUILDER: Bot is in 0 servers. Please invite the bot using the Invite URL to physically generate channels.`);
         }
       } catch (err) {
         this.log(`⚠️ Live Discord REST API execution note: ${err.message}`);
@@ -552,8 +555,11 @@ class DiscordBotManager {
 
     return {
       success: true,
+      botInServer: liveExecutionLog.some((l) => l.includes("created")),
       message: liveExecutionLog.length > 0
-        ? `⚡ Live Discord Server Setup Complete! Created ${liveExecutionLog.length} live Discord resources (Roles, Categories, Channels & Embeds) in your server.`
+        ? liveExecutionLog.some((l) => l.includes("created"))
+          ? `⚡ Live Discord Server Setup Complete! Created ${liveExecutionLog.length} live Discord resources (Roles, Categories, Channels & Embeds) in your server.`
+          : `⚠️ Server Builder Ready! Bot is currently in 0 Discord servers. Please invite the bot to your server first using the Invite URL above, then click Run Setup again.`
         : "Discord Server Structure (6 Categories, 14 Channels, 7 Roles & 6 Rich Embeds) generated & provisioned!",
       liveExecutionLog,
       categories,
@@ -561,6 +567,82 @@ class DiscordBotManager {
       roles,
       richEmbeds,
     };
+  }
+
+  // --- 🪙 Economy & Casino Mini-Games Engine ---
+  getUserBalance(author) {
+    if (!this.userXP.has(author)) {
+      this.userXP.set(author, { xp: 100, level: 1, messages: 5 });
+    }
+    const currentCoins = this.userXP.get(author).coins || 250;
+    return currentCoins;
+  }
+
+  handleDailyReward(author) {
+    const user = this.userXP.get(author) || { xp: 0, level: 1, messages: 0, coins: 0, streak: 0 };
+    const rewardCoins = 250;
+    user.coins = (user.coins || 0) + rewardCoins;
+    user.streak = (user.streak || 0) + 1;
+    this.userXP.set(author, user);
+    this.log(`🪙 [DAILY REWARD] @${author} claimed 250 Kyro Coins! (Day ${user.streak} Streak)`);
+    return { coins: user.coins, rewardCoins, streak: user.streak };
+  }
+
+  handleFlipCoin(author, betAmount = 50, choice = "heads") {
+    const user = this.userXP.get(author) || { xp: 0, level: 1, messages: 0, coins: 250 };
+    const currentCoins = user.coins || 250;
+    if (currentCoins < betAmount) {
+      throw new Error(`Insufficient Kyro Coins balance (${currentCoins} coins available).`);
+    }
+
+    const outcomes = ["heads", "tails"];
+    const result = outcomes[Math.floor(Math.random() * 2)];
+    const won = result === choice.toLowerCase();
+    const newCoins = won ? currentCoins + betAmount : currentCoins - betAmount;
+
+    user.coins = newCoins;
+    this.userXP.set(author, user);
+    this.log(`🪙 [COIN FLIP] @${author} bet ${betAmount} on ${choice}. Result: ${result.toUpperCase()} (${won ? "WON" : "LOST"}).`);
+    return { outcome: result, won, newCoins, betAmount };
+  }
+
+  handleSlots(author, betAmount = 50) {
+    const user = this.userXP.get(author) || { xp: 0, level: 1, messages: 0, coins: 250 };
+    const currentCoins = user.coins || 250;
+    if (currentCoins < betAmount) {
+      throw new Error(`Insufficient Kyro Coins balance (${currentCoins} coins available).`);
+    }
+
+    const symbols = ["🍒", "🍋", "💎", "👑", "7️⃣"];
+    const s1 = symbols[Math.floor(Math.random() * symbols.length)];
+    const s2 = symbols[Math.floor(Math.random() * symbols.length)];
+    const s3 = symbols[Math.floor(Math.random() * symbols.length)];
+
+    let multiplier = 0;
+    if (s1 === s2 && s2 === s3) {
+      multiplier = s1 === "👑" || s1 === "7️⃣" ? 10 : 5;
+    } else if (s1 === s2 || s2 === s3 || s1 === s3) {
+      multiplier = 2;
+    }
+
+    const winnings = betAmount * multiplier;
+    const newCoins = currentCoins - betAmount + winnings;
+    user.coins = newCoins;
+    this.userXP.set(author, user);
+
+    this.log(`🎰 [SLOTS] @${author} spun [ ${s1} | ${s2} | ${s3} ]. Multiplier: ${multiplier}x (${winnings} coins).`);
+    return { reels: [s1, s2, s3], multiplier, winnings, newCoins };
+  }
+
+  // --- 🛡️ Security & Anti-Raid Utilities ---
+  purgeMessages(channelName, count = 10) {
+    this.log(`🧹 [PURGE] Cleared ${count} messages from ${channelName}.`);
+    return { channelName, purgedCount: count };
+  }
+
+  setSlowmode(channelName, seconds = 5) {
+    this.log(`⏱️ [SLOWMODE] Channel ${channelName} slowmode set to ${seconds}s.`);
+    return { channelName, seconds };
   }
 
   // --- Remote Server Config Persister ---

@@ -704,8 +704,8 @@ export default function OwnerDiscordSuitePage() {
   };
 
   const inviteUrl = activeBot
-    ? `https://discord.com/api/oauth2/authorize?client_id=${activeBot.botId}&permissions=2147483648&scope=bot%20applications.commands`
-    : "https://discord.com/api/oauth2/authorize?client_id=100000000000000000&permissions=2147483648&scope=bot%20applications.commands";
+    ? `https://discord.com/api/oauth2/authorize?client_id=${activeBot.botId}&permissions=8&scope=bot%20applications.commands`
+    : "https://discord.com/api/oauth2/authorize?client_id=1548576579872100374&permissions=8&scope=bot%20applications.commands";
 
   // Lock Screen if not owner authenticated
   if (!isOwnerAuthenticated) {

@@ -194,6 +194,17 @@ class DiscordBotManager {
     };
   }
 
+  async requestAiCompletion(messages, options = {}) {
+    const res = await callInference({ messages, ...options });
+    if (!res || !res.ok) {
+      const errText = res ? await res.text().catch(() => "") : "No response";
+      throw new Error(`AI Gateway HTTP ${res?.status || 500}: ${errText}`);
+    }
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content || "";
+    return { content, data };
+  }
+
   // --- Live Discord Gateway WebSocket Connection ---
   async connectGateway(token) {
     try {
@@ -284,16 +295,16 @@ class DiscordBotManager {
               const cmdName = data.name;
               const userPrompt = data.options?.[0]?.value || `Execute slash command /${cmdName}`;
 
-              callInference([
+              this.requestAiCompletion([
                 { role: "system", content: "You are Kyro 70B AI Discord Bot. Provide a clean, helpful markdown response suitable for Discord chat." },
                 { role: "user", content: userPrompt },
-              ]).then((aiRes) => {
+              ]).then(({ content }) => {
                 const appId = this.botInfo?.id || "1548576579872100374";
                 fetch(`https://discord.com/api/v10/webhooks/${appId}/${interactionToken}/messages/@original`, {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    content: `**[Kyro AI Response for @${username}]:**\n\n${aiRes.content}`,
+                    content: `**[Kyro AI Response for @${username}]:**\n\n${content}`,
                   }),
                 }).catch(() => {});
               }).catch((err) => {
@@ -597,7 +608,7 @@ class DiscordBotManager {
         if (guildId) {
           this.log(`🚀 [DISCORD LIVE EXECUTION] Beginning live server cleanup and setup for Guild ID ${guildId}...`);
 
-          // 0. Clean Up / Delete Pre-Existing Channels & Categories to prevent clutter
+          // 0. Clean Up / Delete Pre-Existing Channels & Categories & Roles to prevent clutter
           try {
             const existingChanRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
               headers: { Authorization: `Bot ${tokenToUse}` },
@@ -616,6 +627,27 @@ class DiscordBotManager {
                 }
               }
               liveExecutionLog.push(`🧹 Server Cleaned: Deleted ${existingChannels.length} pre-existing channels & categories.`);
+            }
+
+            const existingRoleRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+              headers: { Authorization: `Bot ${tokenToUse}` },
+            });
+            if (existingRoleRes.ok) {
+              const existingRoles = await existingRoleRes.json();
+              this.log(`🧹 [SERVER CLEANUP] Purging pre-existing custom server roles...`);
+              for (const r of existingRoles) {
+                if (r.id !== guildId && !r.managed) {
+                  try {
+                    await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles/${r.id}`, {
+                      method: "DELETE",
+                      headers: { Authorization: `Bot ${tokenToUse}` },
+                    });
+                  } catch {
+                    // Ignore single role delete error
+                  }
+                }
+              }
+              liveExecutionLog.push(`🧹 Server Cleaned: Purged pre-existing custom server roles.`);
             }
           } catch (err) {
             this.log(`⚠️ Cleanup note: ${err.message}`);
@@ -679,10 +711,16 @@ class DiscordBotManager {
             const targetChanId = channelIdMap.get(embedObj.channel);
             if (targetChanId) {
               try {
+                const { components, channel, ...embedData } = embedObj;
+                const msgPayload = { embeds: [embedData] };
+                if (components) {
+                  msgPayload.components = components;
+                }
+
                 const msgRes = await fetch(`https://discord.com/api/v10/channels/${targetChanId}/messages`, {
                   method: "POST",
                   headers: { Authorization: `Bot ${tokenToUse}`, "Content-Type": "application/json" },
-                  body: JSON.stringify({ embeds: [embedObj] }),
+                  body: JSON.stringify(msgPayload),
                 });
                 if (msgRes.ok) {
                   liveExecutionLog.push(`🎨 Deployed Rich Embed to Discord Channel ${embedObj.channel}`);
@@ -875,7 +913,7 @@ class DiscordBotManager {
 
     let aiDraft = "Welcome to Kyro AI Support Desk! An admin will review your ticket shortly.";
     try {
-      const response = await callInference([
+      const response = await this.requestAiCompletion([
         { role: "system", content: "You are Kyro AI Support Assistant. Draft a friendly initial response acknowledging the user's issue and offering preliminary Troubleshooting steps." },
         { role: "user", content: `Issue Topic: ${topic}` },
       ]);
@@ -1019,7 +1057,7 @@ class DiscordBotManager {
 
     try {
       const response = await Promise.race([
-        callInference([
+        this.requestAiCompletion([
           { role: "system", content: "Extract a concise slash command name (alphanumeric with hyphens, lowercase, max 20 chars) and description from the prompt. Return strict JSON: {\"name\": \"...\", \"description\": \"...\"}" },
           { role: "user", content: prompt },
         ]),
@@ -1142,7 +1180,7 @@ class DiscordBotManager {
 
     this.log(`💬 Received message from @${author}: "${content.slice(0, 40)}..."`);
     try {
-      const response = await callInference([
+      const response = await this.requestAiCompletion([
         { role: "system", content: "You are Kyro AI, responding to Discord chat members concisely and helpfully." },
         { role: "user", content },
       ]);
@@ -1188,7 +1226,7 @@ class DiscordBotManager {
 
         let aiDraft = "Welcome to Kyro AI Support Desk! An administrator will review your ticket shortly.";
         try {
-          const aiRes = await callInference([
+          const aiRes = await this.requestAiCompletion([
             { role: "system", content: "You are Kyro AI Support Desk. Draft a friendly initial response welcoming the user and asking for details about their issue." },
             { role: "user", content: `Ticket opened by @${username}` },
           ]);

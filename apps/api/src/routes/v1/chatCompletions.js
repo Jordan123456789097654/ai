@@ -56,7 +56,9 @@ export default async function chatCompletionsRoute(fastify) {
       const targetModel = model || config.activeModel;
       const isAdmin = request.user?.role === "admin";
 
-      const finalMessages = [{ role: "system", content: config.globalSystemPrompt }, ...messages];
+      // Keep system prompt + last 12 messages to prevent Input Token Limit (413 / ITPM) errors on free tier models
+      const historyWindow = Array.isArray(messages) ? messages.slice(-12) : [];
+      const finalMessages = [{ role: "system", content: config.globalSystemPrompt }, ...historyWindow];
 
       // Admin bypass: remove secret/PII redaction and global filtering for admin API keys & admin sessions
       const sanitizedMessages = finalMessages.map((m) => {

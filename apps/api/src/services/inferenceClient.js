@@ -15,6 +15,17 @@ function getNextKey() {
   return key;
 }
 
+// Preferred models in priority order (prefer compound/instant models with high token limits)
+const PREFERRED_MODEL_KEYWORDS = [
+  "groq/compound",
+  "groq/compound-mini",
+  "llama-3.3-70b",
+  "llama-3.1-8b",
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "qwen",
+];
+
 // In-memory cache of live available models from the provider
 let cachedProviderModels = null;
 let lastModelFetchTime = 0;
@@ -51,6 +62,15 @@ async function fetchAvailableModels(customKey) {
         );
 
         if (textModels.length > 0) {
+          // Sort by preferred model keywords
+          textModels.sort((a, b) => {
+            const scoreA = PREFERRED_MODEL_KEYWORDS.findIndex((k) => a.toLowerCase().includes(k));
+            const scoreB = PREFERRED_MODEL_KEYWORDS.findIndex((k) => b.toLowerCase().includes(k));
+            const aVal = scoreA === -1 ? 99 : scoreA;
+            const bVal = scoreB === -1 ? 99 : scoreB;
+            return aVal - bVal;
+          });
+
           cachedProviderModels = textModels;
           lastModelFetchTime = now;
           console.log("[inference] Active live models on provider:", cachedProviderModels);
@@ -62,7 +82,7 @@ async function fetchAvailableModels(customKey) {
     console.warn("[inference] Could not fetch live models list from provider:", err.message);
   }
 
-  return ["groq/compound", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+  return ["groq/compound", "groq/compound-mini", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 }
 
 /** Maps Kyro model requests to active live models on the provider */
@@ -70,7 +90,7 @@ async function resolveModelToUse(requestedModel, customKey) {
   const liveModels = await fetchAvailableModels(customKey);
 
   if (!liveModels || liveModels.length === 0) {
-    return "llama-3.3-70b-versatile";
+    return "groq/compound";
   }
 
   // 1. Exact match in live models
@@ -80,7 +100,7 @@ async function resolveModelToUse(requestedModel, customKey) {
 
   const norm = (requestedModel || "").toLowerCase().trim();
 
-  // 2. Keyword matching against live models list
+  // 2. Fast / lightweight matching
   if (norm.includes("fast") || norm.includes("flash") || norm.includes("mini") || norm.includes("8b")) {
     const fastMatch = liveModels.find((m) => m.includes("mini") || m.includes("8b") || m.includes("fast") || m.includes("instant"));
     if (fastMatch) return fastMatch;
@@ -102,8 +122,8 @@ async function resolveModelToUse(requestedModel, customKey) {
 
 /**
  * Calls the OpenAI-compatible cloud inference provider using key pool or custom user key.
- * Rotates to the next available key in the pool on 429 (rate-limit) or 401 (auth error).
- * Automatically fails over to active live models if the primary model returns 400/404.
+ * Automatically rotates to the next key in the pool on 429 (rate-limit), 413 (token limit), or 401 (auth error).
+ * Automatically fails over to alternate active live models if the requested model returns 400/404/413.
  */
 export async function callInference({ messages, model, temperature, topP, maxTokens, stream, userApiKey }) {
   const pool = env.groqKeyPool;
@@ -117,10 +137,9 @@ export async function callInference({ messages, model, temperature, topP, maxTok
     const keySlot = triedKeys + 1;
     triedKeys++;
 
-    // Dynamically resolve target model against provider's live supported models
     const primaryModel = await resolveModelToUse(model || env.inferenceModel, currentKey);
 
-    console.log(`[inference] Attempt ${keySlot}/${poolSize} using target model '${primaryModel}' (requested: '${model}')`);
+    console.log(`[inference] Attempt ${keySlot}/${poolSize} using model '${primaryModel}' (requested: '${model}')`);
 
     let response;
     try {
@@ -133,24 +152,40 @@ export async function callInference({ messages, model, temperature, topP, maxTok
       throw err;
     }
 
-    // ── 429 Rate Limited: try next key in pool ────────────────────────────
-    if (response.status === 429) {
+    // ── 429 / 413 Rate or Token Limit: try next key in pool ───────────────
+    if (response.status === 429 || response.status === 413) {
+      const bodyText = await response.text().catch(() => "");
       const retryAfter = response.headers.get("retry-after");
-      console.warn(`[inference] Key slot ${keySlot} hit 429 rate limit (${retryAfter ?? "N/A"}s). Trying next key...`);
-      if (triedKeys < poolSize) continue;
+      console.warn(`[inference] Key slot ${keySlot} hit status ${response.status} (${bodyText || "Quota exceeded"}). Rotating to next key in pool...`);
 
-      const err = new Error(`All ${poolSize} Groq API key(s) are rate-limited (429). Please add more keys via GROQ_API_KEYS.`);
-      err.status = 429;
+      if (triedKeys < poolSize) continue; // Try next key in pool!
+
+      // If all keys in pool hit token limits on this model, try fallback model
+      console.warn(`[inference] All keys exhausted on '${primaryModel}'. Retrying with alternate live models...`);
+      const liveModels = await fetchAvailableModels(currentKey);
+
+      for (const liveModel of liveModels) {
+        if (liveModel === primaryModel) continue;
+
+        console.log(`[inference] Retrying completion with alternate model: '${liveModel}'`);
+        const fbResponse = await makeRequest(liveModel, { messages, temperature, topP, maxTokens, stream }, currentKey);
+        if (fbResponse.ok) {
+          return fbResponse;
+        }
+      }
+
+      const err = new Error(`All ${poolSize} Groq API key(s) exceeded token/rate limits (${response.status}). Please add more keys via GROQ_API_KEYS.`);
+      err.status = response.status;
       throw err;
     }
 
     // ── 401 Unauthorized: key is invalid or expired ───────────────────────
     if (response.status === 401) {
       const bodyText = await response.text().catch(() => "");
-      console.warn(`[inference] Key slot ${keySlot} returned 401 Unauthorized: ${bodyText}. Trying next key...`);
+      console.warn(`[inference] Key slot ${keySlot} returned 401 Unauthorized: ${bodyText}. Rotating to next key...`);
       if (triedKeys < poolSize) continue;
 
-      const err = new Error(`Groq API key authentication failed (401 Unauthorized). Please verify GROQ_API_KEYS or INFERENCE_API_KEY in Render. Details: ${bodyText || "Invalid API key"}`);
+      const err = new Error(`Groq API key authentication failed (401 Unauthorized). Please verify GROQ_API_KEYS or INFERENCE_API_KEY in Render.`);
       err.status = 401;
       throw err;
     }
@@ -169,7 +204,6 @@ export async function callInference({ messages, model, temperature, topP, maxTok
       ) {
         console.warn(`[inference] Model '${primaryModel}' unavailable (${bodyText}). Querying live active models...`);
 
-        // Reset cached models to force fresh lookup
         cachedProviderModels = null;
         const liveModels = await fetchAvailableModels(currentKey);
 
@@ -180,9 +214,6 @@ export async function callInference({ messages, model, temperature, topP, maxTok
           const fbResponse = await makeRequest(liveModel, { messages, temperature, topP, maxTokens, stream }, currentKey);
           if (fbResponse.ok) {
             return fbResponse;
-          } else {
-            const fbErrText = await fbResponse.text().catch(() => "");
-            console.warn(`[inference] Fallback model '${liveModel}' returned HTTP ${fbResponse.status}: ${fbErrText}`);
           }
         }
       }
@@ -219,7 +250,7 @@ async function makeRequest(modelName, { messages, temperature, topP, maxTokens, 
 }
 
 /**
- * Returns sanitized pool diagnostics (key count, current rotation index)
+ * Returns sanitized pool diagnostics
  */
 export function getKeyPoolStats() {
   const pool = env.groqKeyPool;

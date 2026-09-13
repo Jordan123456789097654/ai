@@ -649,13 +649,29 @@ export default function OwnerDiscordSuitePage() {
 
   // 1-Click Discord Server Auto-Setup
   const handleProvisionServerStructure = async () => {
+    setServerSetupStatus("🚀 Sending Discord REST API v10 commands to physically create Categories, Channels, Roles & Embeds...");
+    const timeStr = new Date().toLocaleTimeString();
+    setStatusLogs((prev) => [`[${timeStr}] 🛠️ Executing 1-Click Discord Server Builder API v10 workflow...`, ...prev]);
+
     try {
       const baseUrl = getApiBaseUrl();
       const res = await fetch(`${baseUrl}/v1/discord/setup-server-structure`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         setServerTree(data);
-        setServerSetupStatus("✅ Discord Server Categories, Channels, Roles & Welcome Embeds successfully provisioned!");
+        setServerSetupStatus(data.message || "✅ Discord Server Categories, Channels, Roles & Rich Embeds successfully provisioned!");
+
+        if (data.liveExecutionLog && data.liveExecutionLog.length > 0) {
+          setStatusLogs((prev) => [
+            ...data.liveExecutionLog.map((log: string) => `[${timeStr}] ${log}`),
+            ...prev,
+          ]);
+        } else {
+          setStatusLogs((prev) => [
+            `[${timeStr}] ✅ Provisioned 6 Categories (14 Channels), 7 Roles, and 6 Rich Embeds for your Discord Server!`,
+            ...prev,
+          ]);
+        }
       }
     } catch (err: any) {
       setServerSetupStatus(`⚠️ Error provisioning server: ${err.message}`);

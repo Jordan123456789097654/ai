@@ -41,7 +41,8 @@ router.post("/setup-auto-reply", async (req, res) => {
 
 // POST /v1/discord/setup-server-structure - 1-Click Discord Server Auto-Setup
 router.post("/setup-server-structure", async (req, res) => {
-  const result = discordBot.setupServer();
+  const { guildId } = req.body || {};
+  const result = await discordBot.setupServer(guildId);
   return res.json(result);
 });
 

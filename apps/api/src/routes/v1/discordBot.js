@@ -41,26 +41,8 @@ router.post("/setup-auto-reply", async (req, res) => {
 
 // POST /v1/discord/setup-server-structure - 1-Click Discord Server Auto-Setup
 router.post("/setup-server-structure", async (req, res) => {
-  const categories = [
-    { name: "🤖 KYRO AI HUB", channels: ["#ai-chat", "#bot-commands", "#kyro-logs"] },
-    { name: "💬 GENERAL COMMUNITY", channels: ["#general", "#announcements", "#rules-and-faq"] },
-    { name: "🛠️ BOT & DEV SUPPORT", channels: ["#bot-support", "#api-keys-help"] },
-  ];
-
-  const roles = [
-    { name: "👑 Platform Owner", color: "#f59e0b", permissions: "Administrator" },
-    { name: "🤖 Kyro AI Bot", color: "#38bdf8", permissions: "Bot Default" },
-    { name: "⭐ Pro Member", color: "#a855f7", permissions: "Standard Member" },
-    { name: "👤 Member", color: "#94a3b8", permissions: "Read & Send" },
-  ];
-
-  discordBot.log(`🛠️ [SERVER AUTO-SETUP] Provisioned 3 Categories, 8 Channels, and 4 Roles for Discord Server.`);
-  return res.json({
-    success: true,
-    message: "Discord Server Structure (Categories, Channels, Roles & Embeds) generated!",
-    categories,
-    roles,
-  });
+  const result = discordBot.setupServer();
+  return res.json(result);
 });
 
 // POST /v1/discord/register-slash-commands - Register Custom Slash Commands

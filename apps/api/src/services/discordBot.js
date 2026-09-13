@@ -200,6 +200,154 @@ class DiscordBotManager {
     }
   }
 
+  // --- 1-Click Server Provisioner (Categories, Channels, Roles & Rich Embeds) ---
+  setupServer() {
+    const categories = [
+      {
+        name: "📌 INFORMATION & RULES",
+        channels: [
+          { name: "#rules-and-tos", type: "Text", description: "Terms of Service, Code of Conduct & Anti-Leak Rules", listening: false },
+          { name: "#announcements", type: "Text", description: "Official Server & Kyro AI Platform Announcements", listening: false },
+          { name: "#welcome-and-faq", type: "Text", description: "Welcome Guide & Account Linking Instructions", listening: false },
+        ],
+      },
+      {
+        name: "💬 GENERAL COMMUNITY",
+        channels: [
+          { name: "#general-chat", type: "Text", description: "General community conversation", listening: false },
+          { name: "#tech-discussion", type: "Text", description: "Software, Web Dev & Engineering discussion", listening: false },
+        ],
+      },
+      {
+        name: "🤖 KYRO AI HUB",
+        channels: [
+          { name: "#ai-lounge", type: "Text", description: "Chat directly with Kyro 70B AI without pings", listening: true },
+          { name: "#bot-commands", type: "Text", description: "Execute /kyro-ask, /kyro-code, /kyro-fix slash commands", listening: true },
+          { name: "#automod-logs", type: "Text", description: "Real-time audit log of blocked secret key leaks & spam", listening: false },
+        ],
+      },
+      {
+        name: "🎫 SUPPORT TICKETS",
+        channels: [
+          { name: "#ticket-desk", type: "Text", description: "Open 1-on-1 support tickets with AI auto-draft response", listening: false },
+        ],
+      },
+      {
+        name: "🎉 COMMUNITY EVENTS",
+        channels: [
+          { name: "#giveaways", type: "Text", description: "3x Rate Limit Boost (60 req/min) Giveaways", listening: false },
+          { name: "#xp-leaderboard", type: "Text", description: "Live Member XP & Level Leaderboard (/kyro-top)", listening: false },
+        ],
+      },
+      {
+        name: "👑 ADMIN & STAFF DECK",
+        channels: [
+          { name: "#staff-lounge", type: "Text", description: "Private staff and moderator chat", listening: false },
+          { name: "#admin-audit-logs", type: "Text", description: "System diagnostics and administrative logs", listening: false },
+        ],
+      },
+    ];
+
+    const roles = [
+      { name: "👑 Platform Owner / Admin", color: "#f59e0b", permissions: "Administrator", hoist: true },
+      { name: "🛡️ Security Moderator", color: "#3b82f6", permissions: "Manage Messages, Kick, Ban, Mute", hoist: true },
+      { name: "🎫 Support Team", color: "#10b981", permissions: "Claim & Close Tickets", hoist: true },
+      { name: "👑 Kyro Master (Level 15+)", color: "#8b5cf6", permissions: "Exclusive VIP Perks", hoist: true },
+      { name: "⭐ Kyro Scholar (Level 5+)", color: "#ec4899", permissions: "Custom Role Colors", hoist: true },
+      { name: "🤖 Kyro AI Bot", color: "#38bdf8", permissions: "Bot Gateway & AI Inference", hoist: true },
+      { name: "👤 Verified Member", color: "#94a3b8", permissions: "Read & Send Messages", hoist: false },
+    ];
+
+    const richEmbeds = [
+      {
+        channel: "#rules-and-tos",
+        title: "📜 Server Terms of Service (TOS) & Community Guidelines",
+        color: "#f59e0b",
+        description: "Welcome to our server! To ensure a safe, productive, and respectful environment for everyone, please abide by the following official rules:",
+        fields: [
+          { name: "1. 🛡️ Secret Key Leak Policy", value: "Do NOT share API keys (OpenAI `sk-...`, GitHub `ghp_...`, or Discord Bot Tokens) under any circumstances. Kyro Auto-Mod will instantly delete exposed keys." },
+          { name: "2. 🤝 Respect & Code of Conduct", value: "Treat all community members with respect. No harassment, hate speech, or toxic behavior." },
+          { name: "3. 🚫 Anti-Spam & Link Flooding", value: "Flooding channels with links or unsolicited advertising is prohibited." },
+          { name: "4. ⚡ Kyro AI Usage", value: "Be mindful of AI rate limits (20 req/min standard, 60 req/min for Discord-linked accounts)." },
+        ],
+        footer: "Kyro Platform Rules • Enforced by AI Auto-Mod",
+      },
+      {
+        channel: "#welcome-and-faq",
+        title: "👋 Welcome to Kyro AI Discord Server!",
+        color: "#38bdf8",
+        description: "We are thrilled to have you here! Kyro AI is an advanced 70B parameter AI assistant ready to assist with coding, debugging, 3D robotics, and server automation.",
+        fields: [
+          { name: "🔗 3x Rate Limit Boost (60 req/min)", value: "Link your Discord account on our web panel (`/auth/discord/callback`) to boost your AI rate limits from 20 to 60 req/min!" },
+          { name: "🤖 How to Interact with Kyro AI", value: "Ping `@KyroBot` in `#ai-lounge` or use slash commands like `/kyro-ask`, `/kyro-code`, `/kyro-fix`." },
+        ],
+        footer: "Kyro AI Developer Suite • https://kyro-web-rodh.onrender.com",
+      },
+      {
+        channel: "#ticket-desk",
+        title: "🎫 Kyro Support Desk",
+        color: "#10b981",
+        description: "Need technical assistance or account help? Click to open a support ticket. Kyro AI will generate an instant auto-draft response, and staff can claim & reply directly from the Kyro Web Panel.",
+        fields: [
+          { name: "⚡ Instant AI Support", value: "Our 70B AI engine analyzes your issue immediately upon ticket creation." },
+          { name: "🔒 Private Channels", value: "Ticket channels are isolated between you and the server staff." },
+        ],
+        footer: "Kyro Support System v2.0",
+      },
+      {
+        channel: "#giveaways",
+        title: "🎉 Kyro Pro Rate Limit Giveaways",
+        color: "#ec4899",
+        description: "Participate in server giveaways to win 3x Rate Limit Boosts (60 req/min for 30 days) and custom VIP server roles!",
+        fields: [
+          { name: "🎁 How to Enter", value: "Check out active giveaway announcements and react with 🎉 to enter!" },
+        ],
+        footer: "Managed by Kyro Web Panel",
+      },
+      {
+        channel: "#bot-commands",
+        title: "🤖 Kyro AI Slash Commands Overview",
+        color: "#8b5cf6",
+        description: "Here are the core slash commands available in this server:",
+        fields: [
+          { name: "`/kyro-ask [prompt]`", value: "Ask any general or technical AI question" },
+          { name: "`/kyro-code [prompt]`", value: "Synthesize production TypeScript/Python/C++ code" },
+          { name: "`/kyro-fix [code]`", value: "Diagnose and fix syntax or logic errors" },
+          { name: "`/kyro-top`", value: "View top server members on the XP Leaderboard" },
+          { name: "`/kyro-rank`", value: "Check your current XP, Level, and Role progress" },
+        ],
+        footer: "Kyro Slash Commands API v10",
+      },
+    ];
+
+    // Populate channels array
+    const flattenedChannels = [];
+    categories.forEach((cat) => {
+      cat.channels.forEach((ch) => {
+        flattenedChannels.push({
+          name: ch.name,
+          category: cat.name,
+          type: ch.type,
+          description: ch.description,
+          listening: ch.listening,
+        });
+      });
+    });
+
+    this.channels = flattenedChannels;
+
+    this.log(`🛠️ [SERVER AUTO-SETUP] Provisioned 6 Categories (${categories.length}), ${flattenedChannels.length} Channels, ${roles.length} Roles, and ${richEmbeds.length} Rich Embeds!`);
+
+    return {
+      success: true,
+      message: "Discord Server Structure (Categories, Channels, Roles & Rich Embeds) successfully generated and deployed!",
+      categories,
+      channelsCount: flattenedChannels.length,
+      roles,
+      richEmbeds,
+    };
+  }
+
   // --- Remote Server Config Persister ---
   updateServerConfig(newConfig) {
     this.serverConfig = { ...this.serverConfig, ...newConfig };

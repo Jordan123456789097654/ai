@@ -703,6 +703,22 @@ export default function OwnerDiscordSuitePage() {
               <Bot className="w-3.5 h-3.5" /> Bot Setup
             </button>
             <button
+              onClick={() => setActiveTab("server_setup")}
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === "server_setup" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" /> ⚡ Setup Discord Server
+            </button>
+            <button
+              onClick={() => setActiveTab("embed_builder")}
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === "embed_builder" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5" /> Embed Builder
+            </button>
+            <button
               onClick={() => setActiveTab("automod")}
               className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
                 activeTab === "automod" ? "bg-amber-500 text-slate-950 font-bold" : "text-slate-400 hover:text-white"
@@ -790,12 +806,31 @@ export default function OwnerDiscordSuitePage() {
       <main className="flex-1 max-w-7xl mx-auto w-full p-6">
         {/* TAB 1: Bot Connection & Status */}
         {activeTab === "connection" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-5 space-y-6">
-              <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-5">
-                <h2 className="font-display font-bold text-white text-base flex items-center gap-2">
-                  <Key className="w-5 h-5 text-amber-400" /> DISCORD_BOT_TOKEN Configurator
-                </h2>
+          <div className="space-y-6">
+            {/* 1-Click Discord Server Auto-Setup Callout Banner */}
+            <div className="bg-gradient-to-r from-amber-500/20 via-cyan-500/20 to-purple-500/20 border border-amber-500/40 rounded-2xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+              <div className="space-y-1">
+                <h3 className="font-display font-bold text-white text-base flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-400" /> 1-Click Discord Server Builder
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Instantly provision 14 Channels (Rules/TOS, Announcements, Support Desk), 7 Server Roles, and 5 Rich Embeds!
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab("server_setup")}
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-all shadow-lg flex items-center gap-2"
+              >
+                <Zap className="w-4 h-4 fill-current" /> Open 1-Click Server Setup
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-5 space-y-6">
+                <div className="border border-[#1b202e] bg-[#0e1017] rounded-2xl p-6 space-y-5">
+                  <h2 className="font-display font-bold text-white text-base flex items-center gap-2">
+                    <Key className="w-5 h-5 text-amber-400" /> DISCORD_BOT_TOKEN Configurator
+                  </h2>
 
                 <div className="space-y-4 text-xs font-mono">
                   <div>
@@ -878,6 +913,7 @@ export default function OwnerDiscordSuitePage() {
               </div>
             </div>
           </div>
+        </div>
         )}
 
         {/* TAB 2: ⚡ 1-Click Setup Kyro Responding */}
@@ -954,62 +990,155 @@ export default function OwnerDiscordSuitePage() {
               <div className="flex items-center justify-between border-b border-[#1b202e] pb-4">
                 <div>
                   <h2 className="font-display font-bold text-white text-lg flex items-center gap-2">
-                    <Hash className="w-5 h-5 text-amber-400" /> 1-Click Discord Server Structure Provisioner
+                    <Zap className="w-5 h-5 text-amber-400" /> 1-Click Full Discord Server Builder
                   </h2>
-                  <p className="text-xs text-slate-400">Instantly generate & provision Categories, Channels, Roles, and Welcome Embeds for your server</p>
+                  <p className="text-xs text-slate-400">Instantly generate Categories, TOS/Rules channels, Support Desk, Roles, and Rich Embeds</p>
                 </div>
                 <button
                   onClick={handleProvisionServerStructure}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-colors shadow-lg"
+                  className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs font-mono transition-all shadow-xl flex items-center gap-2"
                 >
-                  🛠️ Auto-Provision Discord Server
+                  <Zap className="w-4 h-4 fill-current" /> ⚡ Run 1-Click Server Setup
                 </button>
               </div>
 
               {serverSetupStatus && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono">
-                  {serverSetupStatus}
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-mono flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{serverSetupStatus}</span>
                 </div>
               )}
 
               {/* Generated Server Structure Tree */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-mono text-xs">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-mono text-xs">
+                {/* Provisioned Categories & Channels */}
                 <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-5 space-y-4">
                   <h3 className="font-bold text-amber-400 text-sm flex items-center gap-2">
-                    <Hash className="w-4 h-4" /> Provisioned Categories & Channels
+                    <Hash className="w-4 h-4" /> Categories & Channels (14 Total)
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
                     <div className="p-3 bg-[#08090d] border border-[#242b3d] rounded-lg space-y-1">
-                      <div className="text-white font-bold">🤖 KYRO AI HUB</div>
-                      <div className="text-slate-400 pl-3 text-[11px]">#ai-chat, #bot-commands, #kyro-logs</div>
+                      <div className="text-amber-400 font-bold text-[11px]">📌 INFORMATION & RULES</div>
+                      <div className="text-slate-300 pl-2 text-[11px] space-y-0.5">
+                        <div>• #rules-and-tos <span className="text-slate-500 text-[10px]">(TOS & Anti-Leak)</span></div>
+                        <div>• #announcements <span className="text-slate-500 text-[10px]">(Updates)</span></div>
+                        <div>• #welcome-and-faq <span className="text-slate-500 text-[10px]">(Getting Started)</span></div>
+                      </div>
                     </div>
+
                     <div className="p-3 bg-[#08090d] border border-[#242b3d] rounded-lg space-y-1">
-                      <div className="text-white font-bold">💬 GENERAL COMMUNITY</div>
-                      <div className="text-slate-400 pl-3 text-[11px]">#general, #announcements, #rules-and-faq</div>
+                      <div className="text-cyan-400 font-bold text-[11px]">💬 GENERAL COMMUNITY</div>
+                      <div className="text-slate-300 pl-2 text-[11px] space-y-0.5">
+                        <div>• #general-chat</div>
+                        <div>• #tech-discussion</div>
+                      </div>
                     </div>
+
                     <div className="p-3 bg-[#08090d] border border-[#242b3d] rounded-lg space-y-1">
-                      <div className="text-white font-bold">🛠️ BOT & DEV SUPPORT</div>
-                      <div className="text-slate-400 pl-3 text-[11px]">#bot-support, #api-keys-help</div>
+                      <div className="text-purple-400 font-bold text-[11px]">🤖 KYRO AI HUB</div>
+                      <div className="text-slate-300 pl-2 text-[11px] space-y-0.5">
+                        <div>• #ai-lounge <span className="text-emerald-400 text-[10px]">(AI Listening ON)</span></div>
+                        <div>• #bot-commands <span className="text-emerald-400 text-[10px]">(Slash Hub)</span></div>
+                        <div>• #automod-logs <span className="text-slate-500 text-[10px]">(Key Leak Audit)</span></div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-[#08090d] border border-[#242b3d] rounded-lg space-y-1">
+                      <div className="text-emerald-400 font-bold text-[11px]">🎫 SUPPORT TICKETS</div>
+                      <div className="text-slate-300 pl-2 text-[11px] space-y-0.5">
+                        <div>• #ticket-desk <span className="text-slate-500 text-[10px]">(1-on-1 AI Tickets)</span></div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-[#08090d] border border-[#242b3d] rounded-lg space-y-1">
+                      <div className="text-pink-400 font-bold text-[11px]">🎉 COMMUNITY EVENTS</div>
+                      <div className="text-slate-300 pl-2 text-[11px] space-y-0.5">
+                        <div>• #giveaways <span className="text-slate-500 text-[10px]">(Boost Draws)</span></div>
+                        <div>• #xp-leaderboard <span className="text-slate-500 text-[10px]">(Level Ranks)</span></div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-[#08090d] border border-[#242b3d] rounded-lg space-y-1">
+                      <div className="text-rose-400 font-bold text-[11px]">👑 ADMIN & STAFF DECK</div>
+                      <div className="text-slate-300 pl-2 text-[11px] space-y-0.5">
+                        <div>• #staff-lounge</div>
+                        <div>• #admin-audit-logs</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
+                {/* Provisioned Server Roles */}
                 <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-5 space-y-4">
                   <h3 className="font-bold text-amber-400 text-sm flex items-center gap-2">
-                    <Crown className="w-4 h-4" /> Provisioned Server Roles
+                    <Crown className="w-4 h-4" /> Server Roles & Permissions
                   </h3>
-                  <div className="space-y-2">
-                    <div className="p-2.5 bg-[#08090d] border border-[#242b3d] rounded-lg flex justify-between items-center">
-                      <span className="text-amber-400 font-bold">👑 Platform Owner</span>
-                      <span className="text-[10px] text-slate-400">Administrator</span>
+                  <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                    <div className="p-2.5 bg-[#08090d] border border-amber-500/30 rounded-lg flex justify-between items-center">
+                      <span className="text-amber-400 font-bold">👑 Platform Owner / Admin</span>
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">Administrator</span>
                     </div>
-                    <div className="p-2.5 bg-[#08090d] border border-[#242b3d] rounded-lg flex justify-between items-center">
+                    <div className="p-2.5 bg-[#08090d] border border-blue-500/30 rounded-lg flex justify-between items-center">
+                      <span className="text-blue-400 font-bold">🛡️ Security Moderator</span>
+                      <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded">Kick/Ban/Mute</span>
+                    </div>
+                    <div className="p-2.5 bg-[#08090d] border border-emerald-500/30 rounded-lg flex justify-between items-center">
+                      <span className="text-emerald-400 font-bold">🎫 Support Team</span>
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">Manage Tickets</span>
+                    </div>
+                    <div className="p-2.5 bg-[#08090d] border border-purple-500/30 rounded-lg flex justify-between items-center">
+                      <span className="text-purple-400 font-bold">👑 Kyro Master (Level 15+)</span>
+                      <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">Level 15 Reward</span>
+                    </div>
+                    <div className="p-2.5 bg-[#08090d] border border-pink-500/30 rounded-lg flex justify-between items-center">
+                      <span className="text-pink-400 font-bold">⭐ Kyro Scholar (Level 5+)</span>
+                      <span className="text-[10px] bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded">Level 5 Reward</span>
+                    </div>
+                    <div className="p-2.5 bg-[#08090d] border border-cyan-500/30 rounded-lg flex justify-between items-center">
                       <span className="text-cyan-400 font-bold">🤖 Kyro AI Bot</span>
-                      <span className="text-[10px] text-slate-400">Bot Default</span>
+                      <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded">Bot Gateway</span>
                     </div>
-                    <div className="p-2.5 bg-[#08090d] border border-[#242b3d] rounded-lg flex justify-between items-center">
-                      <span className="text-purple-400 font-bold">⭐ Pro Member</span>
-                      <span className="text-[10px] text-slate-400">Standard Member</span>
+                    <div className="p-2.5 bg-[#08090d] border border-slate-700 rounded-lg flex justify-between items-center">
+                      <span className="text-slate-400 font-bold">👤 Verified Member</span>
+                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">Read & Send</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Provisioned Rich Embeds Preview */}
+                <div className="bg-[#121522] border border-[#242b3d] rounded-xl p-5 space-y-4">
+                  <h3 className="font-bold text-amber-400 text-sm flex items-center gap-2">
+                    <Palette className="w-4 h-4" /> Deployed Rich Embeds
+                  </h3>
+                  <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+                    <div className="p-3 bg-[#08090d] border border-amber-500/30 rounded-lg space-y-1">
+                      <div className="text-amber-400 font-bold text-[11px]">📜 Terms of Service & Guidelines</div>
+                      <div className="text-slate-400 text-[10px]">Posted in: #rules-and-tos</div>
+                      <p className="text-slate-300 text-[10px] pt-1">Rules on secret key protections, community conduct, and AI rate limits.</p>
+                    </div>
+
+                    <div className="p-3 bg-[#08090d] border border-cyan-500/30 rounded-lg space-y-1">
+                      <div className="text-cyan-400 font-bold text-[11px]">👋 Welcome & Account Link Guide</div>
+                      <div className="text-slate-400 text-[10px]">Posted in: #welcome-and-faq</div>
+                      <p className="text-slate-300 text-[10px] pt-1">Instructions for 3x Rate Limit Boost (60 req/min) account linking.</p>
+                    </div>
+
+                    <div className="p-3 bg-[#08090d] border border-emerald-500/30 rounded-lg space-y-1">
+                      <div className="text-emerald-400 font-bold text-[11px]">🎫 Kyro AI Support Desk</div>
+                      <div className="text-slate-400 text-[10px]">Posted in: #ticket-desk</div>
+                      <p className="text-slate-300 text-[10px] pt-1">Click to open ticket with instant 70B AI auto-draft reply.</p>
+                    </div>
+
+                    <div className="p-3 bg-[#08090d] border border-pink-500/30 rounded-lg space-y-1">
+                      <div className="text-pink-400 font-bold text-[11px]">🎉 3x Rate Limit Giveaways</div>
+                      <div className="text-slate-400 text-[10px]">Posted in: #giveaways</div>
+                      <p className="text-slate-300 text-[10px] pt-1">Giveaway announcement embeds for member rewards.</p>
+                    </div>
+
+                    <div className="p-3 bg-[#08090d] border border-purple-500/30 rounded-lg space-y-1">
+                      <div className="text-purple-400 font-bold text-[11px]">🤖 Slash Commands Cheat-Sheet</div>
+                      <div className="text-slate-400 text-[10px]">Posted in: #bot-commands</div>
+                      <p className="text-slate-300 text-[10px] pt-1">`/kyro-ask`, `/kyro-code`, `/kyro-fix`, `/kyro-top`, `/kyro-rank` manual.</p>
                     </div>
                   </div>
                 </div>

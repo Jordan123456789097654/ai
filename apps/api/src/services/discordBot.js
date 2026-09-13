@@ -413,11 +413,16 @@ class DiscordBotManager {
     const roles = [
       { name: "👑 Platform Owner / Admin", color: 0xf59e0b, permissions: "8", hoist: true },
       { name: "🛡️ Security Moderator", color: 0x3b82f6, permissions: "8194", hoist: true },
-      { name: "🎫 Support Team", color: 0x10b981, permissions: "3072", hoist: true },
-      { name: "👑 Kyro Master (Level 15+)", color: 0x8b5cf6, permissions: "0", hoist: true },
-      { name: "⭐ Kyro Scholar (Level 5+)", color: 0xec4899, permissions: "0", hoist: true },
+      { name: "🎫 Lead Support Specialist", color: 0x10b981, permissions: "3072", hoist: true },
       { name: "🤖 Kyro AI Bot", color: 0x38bdf8, permissions: "8", hoist: true },
+      { name: "⚡ Kyro VIP (3x Rate Limit Boosted)", color: 0xa855f7, permissions: "0", hoist: true },
+      { name: "👑 Kyro Master (Level 15+)", color: 0x6366f1, permissions: "0", hoist: true },
+      { name: "⭐ Kyro Scholar (Level 5+)", color: 0xec4899, permissions: "0", hoist: true },
+      { name: "🪙 High Roller (10k+ Coins)", color: 0xd97706, permissions: "0", hoist: true },
+      { name: "💻 Full-Stack Developer", color: 0x14b8a6, permissions: "0", hoist: false },
+      { name: "🎮 Gaming Champion", color: 0xf97316, permissions: "0", hoist: false },
       { name: "👤 Verified Member", color: 0x94a3b8, permissions: "104192001", hoist: false },
+      { name: "🎉 Event Winner", color: 0xf43f5e, permissions: "0", hoist: false },
     ];
 
     const richEmbeds = [
@@ -478,21 +483,39 @@ class DiscordBotManager {
         title: "🎫 Kyro AI Support & Help Desk",
         url: "https://kyro-web-rodh.onrender.com/discord-bot",
         color: 0x10b981,
-        description: "Need technical assistance, API key help, or billing/account support? Create a private 1-on-1 ticket right here!",
-        fields: [
+        description: "Need technical assistance, API key help, or billing/account support?\n\nClick the **📩 Open Support Ticket** button below to open a private 1-on-1 support channel!\n\n⚡ **70B AI Instant Auto-Draft**: Kyro AI immediately analyzes your problem description and posts an instant technical solution draft while staff reviews.\n\n👑 **Admin Panel Integration**: Staff can review, claim (`Claimed by @Admin`), reply directly, and close tickets (`🔒 Close Ticket`) from the Kyro Web Panel.",
+        footer: { text: "Kyro Support Ticket System v2.0 • Click 📩 Open Support Ticket below" },
+        components: [
           {
-            name: "⚡ 70B AI Instant Auto-Draft",
-            value: "When you open a ticket, Kyro AI immediately analyzes your problem description and posts an instant technical solution draft while staff reviews.",
-          },
-          {
-            name: "👑 Admin Panel Integration",
-            value: "Server staff can review, claim (`Claimed by @Admin`), reply directly, and close tickets (`🔒 Close Ticket`) from the Kyro Web Panel.",
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 1,
+                custom_id: "create_ticket",
+                label: "📩 Open Support Ticket",
+                emoji: { name: "🎟️" },
+              },
+            ],
           },
         ],
-        footer: { text: "Kyro Support Ticket System v2.0" },
       },
       {
-        channel: "#giveaways",
+        channel: "#casino-and-daily",
+        title: "🪙 Kyro Economy & Casino Arcade Guide",
+        url: "https://kyro-web-rodh.onrender.com/discord-bot",
+        color: 0xd97706,
+        description: "Welcome to the Kyro Economy Casino! Earn coins, flip coins, spin slots, and climb the server coin leaderboard:",
+        fields: [
+          { name: "🪙 `/kyro-daily`", value: "Claim your daily bonus of **250 Kyro Coins** (build your daily streak!)" },
+          { name: "🪙 `/kyro-flip bet: 50 choice: heads`", value: "Double your coins with a 50/50 coin flip" },
+          { name: "🎰 `/kyro-slots bet: 50`", value: "Spin the slot machine for up to **10x payout multipliers**" },
+          { name: "🏆 `/kyro-top`", value: "View the top server XP and coin holders" },
+        ],
+        footer: { text: "Kyro Economy Engine v2.0" },
+      },
+      {
+        channel: "#events-and-giveaways",
         title: "🎉 Kyro Pro Rate Limit & VIP Giveaways",
         url: "https://kyro-web-rodh.onrender.com/discord-bot",
         color: 0xec4899,
@@ -500,13 +523,13 @@ class DiscordBotManager {
         fields: [
           {
             name: "🎁 How Giveaways Work",
-            value: "1. Watch for active giveaway embeds in `#giveaways`.\n2. Click the 🎉 reaction to enter.\n3. Winners are automatically drawn and announced by Kyro Web Panel!",
+            value: "1. Watch for active giveaway embeds in `#events-and-giveaways`.\n2. Click the 🎉 reaction to enter.\n3. Winners are automatically drawn and announced by Kyro Web Panel!",
           },
         ],
         footer: { text: "Managed by Kyro Web Panel Giveaways Engine" },
       },
       {
-        channel: "#announcements",
+        channel: "#server-status",
         title: "🟢 Kyro Platform Live System Status & Uptime",
         url: "https://kyro-web-rodh.onrender.com/status",
         color: 0x10b981,
@@ -529,7 +552,10 @@ class DiscordBotManager {
           { name: "`/kyro-ask [prompt]`", value: "Ask Kyro 70B AI technical or general questions" },
           { name: "`/kyro-code [language]`", value: "Synthesize clean production code in TypeScript, Python, C++, etc." },
           { name: "`/kyro-fix [code]`", value: "Diagnose, refactor, and fix runtime or syntax errors" },
-          { name: "`/kyro-top`", value: "View top active members on the server XP Leaderboard" },
+          { name: "`/kyro-daily`", value: "Claim daily 250 Kyro Coins reward" },
+          { name: "`/kyro-flip [bet] [choice]`", value: "Play heads or tails coin flip" },
+          { name: "`/kyro-slots [bet]`", value: "Spin slot machine arcade" },
+          { name: "`/kyro-top`", value: "View top active members on the server XP & Coins Leaderboard" },
           { name: "`/kyro-rank`", value: "Inspect your personal XP, level progress, and level roles" },
         ],
         footer: { text: "Kyro Slash Commands API v10" },
@@ -569,7 +595,31 @@ class DiscordBotManager {
         }
 
         if (guildId) {
-          this.log(`🚀 [DISCORD LIVE EXECUTION] Beginning live server setup for Guild ID ${guildId}...`);
+          this.log(`🚀 [DISCORD LIVE EXECUTION] Beginning live server cleanup and setup for Guild ID ${guildId}...`);
+
+          // 0. Clean Up / Delete Pre-Existing Channels & Categories to prevent clutter
+          try {
+            const existingChanRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+              headers: { Authorization: `Bot ${tokenToUse}` },
+            });
+            if (existingChanRes.ok) {
+              const existingChannels = await existingChanRes.json();
+              this.log(`🧹 [SERVER CLEANUP] Purging ${existingChannels.length} pre-existing channels & categories...`);
+              for (const ch of existingChannels) {
+                try {
+                  await fetch(`https://discord.com/api/v10/channels/${ch.id}`, {
+                    method: "DELETE",
+                    headers: { Authorization: `Bot ${tokenToUse}` },
+                  });
+                } catch {
+                  // Ignore single channel delete error
+                }
+              }
+              liveExecutionLog.push(`🧹 Server Cleaned: Deleted ${existingChannels.length} pre-existing channels & categories.`);
+            }
+          } catch (err) {
+            this.log(`⚠️ Cleanup note: ${err.message}`);
+          }
 
           // 1. Create Server Roles
           for (const role of roles) {

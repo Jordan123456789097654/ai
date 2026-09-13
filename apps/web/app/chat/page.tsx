@@ -33,22 +33,107 @@ interface Thread {
   timestamp: string;
 }
 
+function FormattedContent({ content }: { content: string }) {
+  // Clean LaTeX inline \(...\) and block \[...\] delimiters
+  let cleanText = content
+    .replace(/\\\((.*?)\\\)/g, "$1")
+    .replace(/\\\[(.*?)\\\]/g, "\n$1\n");
+
+  const lines = cleanText.split("\n");
+  let inCodeBlock = false;
+  let codeBuffer: string[] = [];
+
+  const elements: React.ReactNode[] = [];
+
+  lines.forEach((line, idx) => {
+    if (line.trim().startsWith("```")) {
+      if (inCodeBlock) {
+        elements.push(
+          <div key={`code-${idx}`} className="bg-[#0b0c10] border border-[#242b3d] rounded-xl p-3.5 my-2 font-mono text-xs text-amber-300 overflow-x-auto shadow-inner">
+            <pre><code>{codeBuffer.join("\n")}</code></pre>
+          </div>
+        );
+        codeBuffer = [];
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+      }
+      return;
+    }
+
+    if (inCodeBlock) {
+      codeBuffer.push(line);
+      return;
+    }
+
+    // Bold Markdown & LaTeX text parser
+    if (line.includes("**")) {
+      const parts = line.split(/(\*\*.*?\*\*)/g);
+      elements.push(
+        <div key={idx} className="my-1 leading-relaxed">
+          {parts.map((p, i) =>
+            p.startsWith("**") && p.endsWith("**") ? (
+              <strong key={i} className="font-bold text-amber-300">{p.slice(2, -2)}</strong>
+            ) : (
+              <span key={i}>{p}</span>
+            )
+          )}
+        </div>
+      );
+      return;
+    }
+
+    // Bullet lists
+    if (line.trim().startsWith("- ") || line.trim().startsWith("• ")) {
+      elements.push(
+        <div key={idx} className="ml-4 my-1 flex items-start gap-2 text-slate-200">
+          <span className="text-amber-400 font-bold">•</span>
+          <span>{line.trim().replace(/^[-•]\s*/, "")}</span>
+        </div>
+      );
+      return;
+    }
+
+    if (line.trim() === "") {
+      elements.push(<div key={idx} className="h-1.5" />);
+      return;
+    }
+
+    elements.push(<div key={idx} className="my-1">{line}</div>);
+  });
+
+  return <div className="space-y-1 font-sans">{elements}</div>;
+}
+
 export default function GeminiChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [selectedModel, setSelectedModel] = useState<string>("kyro-flash");
   const [showModelMenu, setShowModelMenu] = useState<boolean>(false);
   const [thinkingActive, setThinkingActive] = useState<boolean>(false);
-  const [webSearchActive, setWebSearchActive] = useState<boolean>(false);
 
-  // Chat Threads State (Clean Gemini List without folder clutter)
+  // Chat Threads & Thread Message Histories State
   const [threads, setThreads] = useState<Thread[]>([
     { id: "1", title: "Autonomous Robot Controller", timestamp: "10m ago" },
     { id: "2", title: "Procedural 3D Mesh Script", timestamp: "2h ago" },
     { id: "3", title: "Creative Story & Worldbuilding", timestamp: "Yesterday" },
   ]);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
-  // Messages & Input State
+  const [threadMessages, setThreadMessages] = useState<Record<string, Message[]>>({
+    "1": [
+      { id: "m1", role: "user", content: "Write a VEX IQ Autonomous Robot Controller in Python", timestamp: "10m ago" },
+      { id: "m2", role: "assistant", content: "Here is a complete autonomous routine for VEX IQ:\n\n```python\nimport vex\nfrom vex import Brain, Motor, Ports, FORWARD, MM, PERCENT\n\nbrain = Brain()\nLeftMotor = Motor(Ports.PORT1, GearSetting.RATIO_18_1, False)\nRightMotor = Motor(Ports.PORT6, GearSetting.RATIO_18_1, True)\n\ndef autonomous():\n    brain.screen.print(\"Autonomous Active\")\n    LeftMotor.spin_for(FORWARD, 300, MM, 80, PERCENT, False)\n    RightMotor.spin_for(FORWARD, 300, MM, 80, PERCENT, True)\n\nautonomous()\n```", timestamp: "10m ago" }
+    ],
+    "2": [
+      { id: "m3", role: "user", content: "whats 412 * 10", timestamp: "2h ago" },
+      { id: "m4", role: "assistant", content: "**Answer:** 4120\n\n**Reasoning:**\n- In many contexts, the suffix 'e' denotes scientific notation.\n- Interpreting `412 * 10` gives \\(412 \\times 10 = 4120\\).\n- A quick calculation confirms this result.", timestamp: "2h ago" }
+    ],
+    "3": [
+      { id: "m5", role: "user", content: "Creative Story & Worldbuilding outline", timestamp: "Yesterday" },
+      { id: "m6", role: "assistant", content: "**World Overview:** In the year 2090, humanity established autonomous orbital AI hubs powered by Kyro Quantum Core...", timestamp: "Yesterday" }
+    ]
+  });
+
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputPrompt, setInputPrompt] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -72,9 +157,27 @@ export default function GeminiChatPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isGenerating]);
 
+  // Select Thread Action
+  const handleSelectThread = (threadId: string) => {
+    setActiveThreadId(threadId);
+    setMessages(threadMessages[threadId] || []);
+  };
+
   const handleSendMessage = async (textOverride?: string) => {
     const query = textOverride || inputPrompt;
     if (!query.trim() || isGenerating) return;
+
+    let currentThreadId = activeThreadId;
+    if (!currentThreadId) {
+      currentThreadId = Date.now().toString();
+      const newThread: Thread = {
+        id: currentThreadId,
+        title: query.slice(0, 26) + (query.length > 26 ? "..." : ""),
+        timestamp: "Just now",
+      };
+      setThreads((prev) => [newThread, ...prev]);
+      setActiveThreadId(currentThreadId);
+    }
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -83,8 +186,9 @@ export default function GeminiChatPage() {
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
+    setThreadMessages((prev) => ({ ...prev, [currentThreadId!]: updatedMessages }));
     if (!textOverride) setInputPrompt("");
     setIsGenerating(true);
 
@@ -100,32 +204,37 @@ export default function GeminiChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: selectedModel === "kyro-pro" ? "kyro-coder-pro" : selectedModel === "deepseek-r1" ? "deepseek-r1" : "llama-3.3-70b-versatile",
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
         }),
       });
 
+      let assistantMsg: Message;
       if (res.ok) {
         const data = await res.json();
         const responseText = data.choices?.[0]?.message?.content || "No response generated.";
-        const assistantMsg: Message = {
+        assistantMsg = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
           content: responseText,
           thinking: thinkingText || undefined,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         };
-        setMessages((prev) => [...prev, assistantMsg]);
       } else {
         const errData = await res.json().catch(() => ({}));
-        const assistantMsg: Message = {
+        assistantMsg = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
           content: `⚠️ **AI Service Notice**: ${errData?.error?.message || res.statusText || "Unable to reach Kyro AI engine."}`,
           thinking: thinkingText || undefined,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         };
-        setMessages((prev) => [...prev, assistantMsg]);
       }
+
+      setMessages((prev) => {
+        const finalMsgs = [...prev, assistantMsg];
+        setThreadMessages((hist) => ({ ...hist, [currentThreadId!]: finalMsgs }));
+        return finalMsgs;
+      });
     } catch (err: any) {
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -134,19 +243,13 @@ export default function GeminiChatPage() {
         thinking: thinkingText || undefined,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-      setMessages((prev) => [...prev, assistantMsg]);
+      setMessages((prev) => {
+        const finalMsgs = [...prev, assistantMsg];
+        setThreadMessages((hist) => ({ ...hist, [currentThreadId!]: finalMsgs }));
+        return finalMsgs;
+      });
     } finally {
       setIsGenerating(false);
-    }
-
-    if (messages.length === 0) {
-      const newThread: Thread = {
-        id: Date.now().toString(),
-        title: query.slice(0, 26) + (query.length > 26 ? "..." : ""),
-        timestamp: "Just now",
-      };
-      setThreads((prev) => [newThread, ...prev]);
-      setActiveThreadId(newThread.id);
     }
   };
 
@@ -158,6 +261,11 @@ export default function GeminiChatPage() {
   const handleDeleteThread = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setThreads((prev) => prev.filter((t) => t.id !== id));
+    setThreadMessages((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
     if (activeThreadId === id) handleNewChat();
   };
 
@@ -195,13 +303,13 @@ export default function GeminiChatPage() {
           </button>
         </div>
 
-        {/* Recent Chats List (Clean, NO Coding Folders) */}
+        {/* Recent Chats List */}
         <div className="flex-1 overflow-y-auto px-3 space-y-1">
           <div className="text-[11px] font-mono text-slate-400 px-3 py-2 font-semibold">Recent</div>
           {threads.map((t) => (
             <div
               key={t.id}
-              onClick={() => setActiveThreadId(t.id)}
+              onClick={() => handleSelectThread(t.id)}
               className={`group flex items-center justify-between px-3.5 py-2.5 rounded-full text-xs font-medium cursor-pointer transition-colors ${
                 activeThreadId === t.id
                   ? "bg-[#004a77]/40 text-[#c2e7ff]"
@@ -370,7 +478,7 @@ export default function GeminiChatPage() {
                     : "bg-[#1e1f20] border border-[#2e3035] text-slate-100"
                 }`}
               >
-                <div className="whitespace-pre-wrap">{m.content}</div>
+                <FormattedContent content={m.content} />
               </div>
             </div>
           ))}

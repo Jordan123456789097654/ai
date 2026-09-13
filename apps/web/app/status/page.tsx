@@ -37,7 +37,15 @@ const UPTIME_DAYS = Array.from({ length: 90 }, (_, i) => {
     uptime: "100%",
     status: "operational",
   };
-});
+function getStatusBadge(status: "Operational" | "Degraded" | "Offline") {
+  if (status === "Operational") {
+    return "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold";
+  }
+  if (status === "Degraded") {
+    return "bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold";
+  }
+  return "bg-red-500/10 border border-red-500/30 text-red-400 font-mono px-2.5 py-1 rounded-md text-[11px] font-semibold";
+}
 
 export default function StatusPage() {
   const [health, setHealth] = useState<SystemHealth | null>(null);

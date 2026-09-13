@@ -1,71 +1,89 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
-import { FileText, ShieldAlert, Check, Mail, Scale, FileCheck, Ticket } from "lucide-react";
+import { Scale, FileText, CheckCircle2, ShieldAlert, Ticket, AlertTriangle, Globe } from "lucide-react";
 
-export default function DmcaPage() {
+export default function DMCAPage() {
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12 space-y-10 text-xs leading-relaxed font-sans text-white">
-      <div className="border-b border-[#252D40] pb-6 space-y-2">
-        <h1 className="font-display text-3xl font-bold text-white flex items-center gap-3">
-          <FileText className="text-purple-400" size={32} /> DMCA Takedown & IP Copyright Policy
-        </h1>
-        <p className="text-gray-400 text-sm font-mono">
-          Document Version 3.1 • Last Revised: September 12, 2026 • 17 U.S.C. § 512 Compliance
-        </p>
+    <div className="mx-auto max-w-5xl px-6 py-12 space-y-12 text-xs leading-relaxed font-sans text-slate-200">
+      {/* Header Banner */}
+      <div className="border-b border-[#242b3d] pb-8 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-blue-400">
+            <Scale size={32} />
+          </div>
+          <div>
+            <h1 className="font-display text-3xl font-bold text-white">DMCA Copyright & Takedown Policy</h1>
+            <p className="text-slate-400 text-sm font-mono mt-1">
+              Document Version 3.0 • Digital Millennium Copyright Act (17 U.S.C. § 512) Compliance
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-8 text-gray-300">
-        <section className="space-y-3">
-          <h2 className="font-display text-lg font-semibold border-b border-[#252D40] pb-2 flex items-center gap-2 text-white">
-            <Scale size={18} className="text-purple-400" /> 1. Compliance Statement
+      {/* Overview */}
+      <div className="space-y-8 text-slate-300">
+        <section className="space-y-4">
+          <h2 className="font-display text-xl font-bold text-white border-b border-[#242b3d] pb-2 flex items-center gap-2">
+            <FileText size={20} className="text-blue-400" /> 1. Copyright Protection Overview
           </h2>
           <p>
-            Kyro AI respects the intellectual property rights of creators and expects users of the Kyro Platform, API Gateways, and templates to do the same. In accordance with the Digital Millennium Copyright Act of 1998 (17 U.S.C. § 512) ("DMCA"), Kyro AI maintains a formal process to handle notices of alleged copyright infringement.
+            Kyro AI Platform respects intellectual property rights and expects all users, developers, and server administrators to do the same. In accordance with the Digital Millennium Copyright Act of 1998 (17 U.S.C. § 512) ("DMCA"), we respond promptly to notices of alleged copyright infringement.
           </p>
         </section>
 
         <section className="space-y-4">
-          <h2 className="font-display text-lg font-semibold border-b border-[#252D40] pb-2 flex items-center gap-2 text-white">
-            <FileCheck size={18} className="text-purple-400" /> 2. Requirements for Submitting a Valid DMCA Notice
+          <h2 className="font-display text-xl font-bold text-white border-b border-[#242b3d] pb-2 flex items-center gap-2">
+            <ShieldAlert size={20} className="text-amber-400" /> 2. Filing a DMCA Takedown Notice
           </h2>
           <p>
-            To file a DMCA copyright infringement notice or counter-notice with Kyro AI, open a direct Support Ticket with our Designated Copyright Agent containing the following elements:
+            If you are a copyright owner or authorized agent and believe that content hosted on our platform infringes your copyright, submit a written notification containing:
           </p>
-          <ol className="list-decimal pl-5 space-y-2 text-gray-400">
-            <li><strong>Identification of Copyrighted Work:</strong> Description of the copyrighted work claimed to have been infringed.</li>
-            <li><strong>Identification of Infringing Material:</strong> Direct URLs or file paths on Kyro AI servers.</li>
-            <li><strong>Contact Information:</strong> Your full legal name, address, phone number, and email.</li>
-            <li><strong>Good Faith & Perjury Penalty Statements:</strong> Written statements that you have a good-faith belief of unauthorized use and act under penalty of perjury.</li>
-          </ol>
+          <div className="bg-[#121522] border border-[#242b3d] p-5 rounded-xl space-y-2 font-mono text-xs text-slate-300">
+            <div>1. Physical or electronic signature of the copyright owner or authorized representative.</div>
+            <div>2. Identification of the copyrighted work claimed to have been infringed.</div>
+            <div>3. Identification of the material that is claimed to be infringing and URL location.</div>
+            <div>4. Contact information including email address, telephone number, and address.</div>
+            <div>5. Statement of good faith belief that use of the material is not authorized.</div>
+            <div>6. Statement under penalty of perjury that the information in the notice is accurate.</div>
+          </div>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="font-display text-lg font-semibold border-b border-[#252D40] pb-2 text-white">
-            3. Repeat Infringer Policy
+        <section className="space-y-4">
+          <h2 className="font-display text-xl font-bold text-white border-b border-[#242b3d] pb-2 flex items-center gap-2">
+            <CheckCircle2 size={20} className="text-emerald-400" /> 3. Counter-Notification Procedure
           </h2>
           <p>
-            In accordance with 17 U.S.C. § 512(i), Kyro AI will terminate the accounts and API developer access of users determined to be repeat infringers of intellectual property rights.
+            If you believe your material was removed or disabled by mistake or misidentification, you may submit a counter-notice pursuant to 17 U.S.C. § 512(g)(3).
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="font-display text-xl font-bold text-white border-b border-[#242b3d] pb-2 flex items-center gap-2">
+            <Globe size={20} className="text-cyan-400" /> 4. Repeat Infringer Policy
+          </h2>
+          <p>
+            Company maintains a strict repeat infringer policy and will terminate accounts or API access for users found to repeatedly infringe intellectual property rights.
           </p>
         </section>
       </div>
 
-      {/* Direct Support Ticket Button */}
-      <div className="border border-[#252D40] bg-[#131722] rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 mt-10">
+      {/* Support Ticket Callout Banner */}
+      <div className="border border-[#242b3d] bg-[#121522] rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 font-mono">
         <div>
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <Ticket size={18} className="text-purple-400" /> File A DMCA Takedown Or Counter-Notice?
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <Ticket size={18} className="text-blue-400" /> Submit A DMCA Takedown Or Copyright Ticket
           </h3>
-          <p className="text-xs text-gray-400 mt-1">
-            Submit a direct Copyright Ticket for immediate processing by our Legal Desk.
+          <p className="text-xs text-slate-400 mt-1">
+            Submit formal DMCA notices directly to our Legal Compliance team.
           </p>
         </div>
-
         <Link
-          href="/support?category=DMCA+%26+Copyright"
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-xs shadow-lg transition-all active:scale-95 shrink-0"
+          href="/discord-bot"
+          className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg transition-all"
         >
-          🎫 Open DMCA Support Ticket
+          🎫 Open Legal Ticket
         </Link>
       </div>
     </div>

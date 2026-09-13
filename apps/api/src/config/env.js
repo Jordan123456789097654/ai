@@ -1,24 +1,20 @@
 import "dotenv/config";
 
 // ── Groq Multi-Key Pool ────────────────────────────────────────────────────
-// Accepts GROQ_API_KEYS as a comma-separated list of keys, falling back to
-// INFERENCE_API_KEY.  Automatically filters out empty values and placeholder
-// strings (e.g. 'YOUR_GROQ_API_KEY').
+// Parses keys from GROQ_API_KEYS and INFERENCE_API_KEY (splitting by comma).
+// Filters out placeholders like 'YOUR_GROQ_API_KEY' and ensures clean gsk_ keys.
 function parseGroqKeyPool() {
-  const multiKeyVar = process.env.GROQ_API_KEYS || "";
-  const singleKey = process.env.INFERENCE_API_KEY || "";
+  const combined = `${process.env.GROQ_API_KEYS || ""},${process.env.INFERENCE_API_KEY || ""}`;
 
-  const rawList = [
-    ...multiKeyVar.split(","),
-    singleKey,
-  ];
-
-  const validKeys = rawList
+  const validKeys = combined
+    .split(",")
     .map((k) => k.trim())
-    .filter((k) => k && !k.toUpperCase().includes("YOUR_GROQ"));
+    .filter((k) => k && k.startsWith("gsk_") && !k.toUpperCase().includes("YOUR_GROQ"));
 
   return [...new Set(validKeys)];
 }
+
+const pool = parseGroqKeyPool();
 
 export const env = {
   port: Number(process.env.PORT || 4000),
@@ -34,10 +30,10 @@ export const env = {
   inferenceBaseUrl: process.env.INFERENCE_BASE_URL || "https://api.groq.com/openai/v1",
   inferenceModel: process.env.INFERENCE_MODEL || "llama-3.3-70b-versatile",
 
-  inferenceApiKey: process.env.INFERENCE_API_KEY || "",
+  inferenceApiKey: pool[0] || "",
 
-  // Multi-key pool — resolved at startup with placeholder filtering
-  groqKeyPool: parseGroqKeyPool(),
+  // Multi-key pool — resolved at startup with comma split on both vars
+  groqKeyPool: pool,
 
   apiKeyPrefix: process.env.API_KEY_PREFIX || "kyro_sk_live_",
 

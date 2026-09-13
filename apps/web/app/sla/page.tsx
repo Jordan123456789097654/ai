@@ -1,73 +1,74 @@
 "use client";
 
-import { Activity, ShieldCheck, Clock, CheckCircle2, AlertCircle, FileText, Percent } from "lucide-react";
+import Link from "next/link";
+import { Activity, ShieldCheck, Clock, CheckCircle2, AlertCircle, FileText, Percent, Ticket } from "lucide-react";
 
 export default function SlaPage() {
   return (
-    <div className="mx-auto max-w-4xl px-6 py-12 space-y-10 text-xs leading-relaxed font-sans">
-      <div className="border-b border-border pb-6 space-y-2">
-        <h1 className="font-display text-3xl text-text flex items-center gap-3">
-          <Activity className="text-success" size={32} /> Enterprise Service Level Agreement (SLA) & Uptime Guarantee
+    <div className="mx-auto max-w-4xl px-6 py-12 space-y-10 text-xs leading-relaxed font-sans text-white">
+      <div className="border-b border-[#252D40] pb-6 space-y-2">
+        <h1 className="font-display text-3xl font-bold text-white flex items-center gap-3">
+          <Activity className="text-emerald-400" size={32} /> Enterprise Service Level Agreement (SLA) & Uptime Guarantee
         </h1>
-        <p className="text-muted text-sm font-mono">
-          Document Version 3.4 • Effective Date: September 6, 2026 • 99.9% Production SLA
+        <p className="text-gray-400 text-sm font-mono">
+          Document Version 3.4 • Effective Date: September 12, 2026 • 99.9% Production SLA
         </p>
       </div>
 
-      <div className="space-y-8 text-text/90">
+      <div className="space-y-8 text-gray-300">
         <section className="space-y-3">
-          <h2 className="font-display text-lg text-text font-semibold border-b border-border/50 pb-1.5 flex items-center gap-2">
-            <FileText size={18} className="text-accent" /> 1. Commitment Overview
+          <h2 className="font-display text-lg font-semibold border-b border-[#252D40] pb-2 flex items-center gap-2 text-white">
+            <FileText size={18} className="text-purple-400" /> 1. Commitment Overview
           </h2>
           <p>
-            This Service Level Agreement ("SLA") defines the service availability and uptime commitments provided by Kyro AI for all paid Pro and Enterprise API Gateway instances (<code className="text-accent font-mono">https://kyro-api-auou.onrender.com/v1/chat/completions</code>).
+            This Service Level Agreement ("SLA") defines the service availability and uptime commitments provided by Kyro AI for all paid Pro and Enterprise API Gateway instances (<code className="text-purple-400 font-mono">https://kyro-api-auou.onrender.com/v1/chat/completions</code>).
           </p>
         </section>
 
         <section className="space-y-4">
-          <h2 className="font-display text-lg text-text font-semibold border-b border-border/50 pb-1.5 flex items-center gap-2">
-            <Percent size={18} className="text-success" /> 2. Monthly Uptime Percentage & SLA Guarantee
+          <h2 className="font-display text-lg font-semibold border-b border-[#252D40] pb-2 flex items-center gap-2 text-white">
+            <Percent size={18} className="text-emerald-400" /> 2. Monthly Uptime Percentage & SLA Guarantee
           </h2>
           <p>
-            Kyro AI guarantees a Monthly Uptime Percentage of at least <strong>99.9%</strong> during any calendar month. Monthly Uptime Percentage is calculated using the following empirical formula:
+            Kyro AI guarantees a Monthly Uptime Percentage of at least <strong>99.9%</strong> during any calendar month. Monthly Uptime Percentage is calculated using the following formula:
           </p>
-          <div className="bg-surface-raised border border-border rounded-lg p-4 font-mono text-[11px] text-accent font-semibold">
+          <div className="bg-[#131722] border border-[#252D40] rounded-xl p-4 font-mono text-[11px] text-purple-400 font-semibold">
             Monthly Uptime % = ((Total Minutes in Month - Downtime Minutes) / Total Minutes in Month) * 100
           </div>
         </section>
 
         <section className="space-y-4">
-          <h2 className="font-display text-lg text-text font-semibold border-b border-border/50 pb-1.5 flex items-center gap-2">
-            <ShieldCheck size={18} className="text-accent" /> 3. Service Credit Refund Schedule
+          <h2 className="font-display text-lg font-semibold border-b border-[#252D40] pb-2 flex items-center gap-2 text-white">
+            <ShieldCheck size={18} className="text-purple-400" /> 3. Service Credit Refund Schedule
           </h2>
           <p>
             If Kyro AI fails to meet the 99.9% Uptime Guarantee in any calendar month, eligible customers are entitled to financial SLA Service Credits according to the following schedule:
           </p>
 
-          <div className="border border-border rounded-lg overflow-hidden font-mono text-[11px]">
+          <div className="border border-[#252D40] rounded-xl overflow-hidden font-mono text-[11px] bg-[#131722]">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-surface-raised text-muted border-b border-border">
+              <thead className="bg-[#1A202C] text-gray-400 border-b border-[#252D40]">
                 <tr>
-                  <th className="p-3 border-r border-border">Monthly Uptime Percentage</th>
-                  <th className="p-3 border-r border-border">SLA Service Credit Percentage</th>
+                  <th className="p-3 border-r border-[#252D40]">Monthly Uptime Percentage</th>
+                  <th className="p-3 border-r border-[#252D40]">SLA Service Credit Percentage</th>
                   <th className="p-3">Remedy Applied To</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-[#252D40]">
                 <tr>
-                  <td className="p-3 border-r border-border text-accent font-bold">99.0% – 99.89%</td>
-                  <td className="p-3 border-r border-border text-success font-bold">10% Credit Refund</td>
-                  <td className="p-3 text-muted">Monthly API Subscription Fee</td>
+                  <td className="p-3 border-r border-[#252D40] text-purple-400 font-bold">99.0% – 99.89%</td>
+                  <td className="p-3 border-r border-[#252D40] text-emerald-400 font-bold">10% Credit Refund</td>
+                  <td className="p-3 text-gray-400">Monthly API Subscription Fee</td>
                 </tr>
                 <tr>
-                  <td className="p-3 border-r border-border text-accent font-bold">95.0% – 98.99%</td>
-                  <td className="p-3 border-r border-border text-success font-bold">25% Credit Refund</td>
-                  <td className="p-3 text-muted">Monthly API Subscription Fee</td>
+                  <td className="p-3 border-r border-[#252D40] text-purple-400 font-bold">95.0% – 98.99%</td>
+                  <td className="p-3 border-r border-[#252D40] text-emerald-400 font-bold">25% Credit Refund</td>
+                  <td className="p-3 text-gray-400">Monthly API Subscription Fee</td>
                 </tr>
                 <tr>
-                  <td className="p-3 border-r border-border text-accent font-bold">&lt; 95.0%</td>
-                  <td className="p-3 border-r border-border text-success font-bold">50% Credit Refund</td>
-                  <td className="p-3 text-muted">Monthly API Subscription Fee</td>
+                  <td className="p-3 border-r border-[#252D40] text-purple-400 font-bold">&lt; 95.0%</td>
+                  <td className="p-3 border-r border-[#252D40] text-emerald-400 font-bold">50% Credit Refund</td>
+                  <td className="p-3 text-gray-400">Monthly API Subscription Fee</td>
                 </tr>
               </tbody>
             </table>
@@ -75,25 +76,32 @@ export default function SlaPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="font-display text-lg text-text font-semibold border-b border-border/50 pb-1.5 flex items-center gap-2">
-            <Clock size={18} className="text-warning" /> 4. Scheduled Maintenance & Exclusions
-          </h2>
-          <p>The calculation of Downtime excludes periods of outage caused by:</p>
-          <ul className="list-disc pl-5 space-y-1.5 text-muted">
-            <li><strong>Scheduled Maintenance:</strong> Announced at least 24 hours in advance on our Status Page (<code className="text-accent font-mono">/status</code>).</li>
-            <li><strong>Force Majeure Events:</strong> Natural disasters, regional internet backbone failures, or upstream cloud provider outage (AWS / GCP / Render).</li>
-            <li><strong>Client-Side Factors:</strong> Misconfigured developer API keys, customer network failure, or exceeding soft cap quotas.</li>
-          </ul>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="font-display text-lg text-text font-semibold border-b border-border/50 pb-1.5">
-            5. Submitting SLA Claims
+          <h2 className="font-display text-lg font-semibold border-b border-[#252D40] pb-2 flex items-center gap-2 text-white">
+            <Clock size={18} className="text-amber-400" /> 4. Submitting SLA Claims
           </h2>
           <p>
-            To receive a Service Credit, submit a written claim to <code className="text-accent font-mono">sla@kyro.ai</code> within 30 days of the outage event. Claims must include date, timestamps, request logs, and affected API Key prefix.
+            To submit an SLA credit claim, open a direct Support Ticket within 30 days of the outage event. Include the date, timestamps, request logs, and affected API key prefix.
           </p>
         </section>
+      </div>
+
+      {/* Direct Support Ticket Button */}
+      <div className="border border-[#252D40] bg-[#131722] rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 mt-10">
+        <div>
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <Ticket size={18} className="text-purple-400" /> Need To Submit An SLA Credit Claim Or Incident Report?
+          </h3>
+          <p className="text-xs text-gray-400 mt-1">
+            Submit a direct SLA Support Ticket for priority processing by our operations team.
+          </p>
+        </div>
+
+        <Link
+          href="/support?category=SLA+%26+Uptime+Credit"
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-xs shadow-lg transition-all active:scale-95 shrink-0"
+        >
+          🎫 Open SLA Credit Ticket
+        </Link>
       </div>
     </div>
   );

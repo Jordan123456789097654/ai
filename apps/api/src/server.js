@@ -19,6 +19,7 @@ import ticketsRoute from "./routes/tickets.js";
 import auditRoute from "./routes/audit.js";
 import betaRoute from "./routes/beta.js";
 import sandboxRoute from "./routes/sandbox.js";
+import { discordBot } from "./services/discordBot.js";
 
 const fastify = Fastify({ logger: true, trustProxy: true });
 
@@ -171,6 +172,10 @@ fastify.listen({ port: env.port, host: "0.0.0.0" }, (err, address) => {
   }
   fastify.log.info(`Kyro API gateway listening at ${address}`);
   fastify.log.info(`Docs at ${address}/docs`);
+
+  if (env.discordBotToken) {
+    discordBot.start().catch((err) => fastify.log.warn(`Discord Bot auto-start note: ${err.message}`));
+  }
 });
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────

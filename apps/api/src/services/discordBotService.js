@@ -1,4 +1,5 @@
 import { callInference } from "./inferenceClient.js";
+import { discordBot } from "./discordBot.js";
 
 // In-memory store for active hosted bot instances
 const activeHostedBots = new Map();
@@ -65,7 +66,14 @@ export async function validateAndStartBot({ token, prefix = "!kyro", model = "ky
     console.warn(`[Discord Hosted Engine] Slash command registration exception:`, err.message);
   }
 
-  // 3. Save active bot instance state
+  // 3. Connect Gateway WebSocket so status turns GREEN/ONLINE immediately on Discord
+  try {
+    await discordBot.connectGateway(cleanToken);
+  } catch (err) {
+    console.warn(`[Discord Hosted Engine] Gateway WebSocket connection note:`, err.message);
+  }
+
+  // 4. Save active bot instance state
   const botSession = {
     botId,
     botName,

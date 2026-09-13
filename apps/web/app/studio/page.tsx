@@ -468,7 +468,7 @@ ${autoSteps
     brain.screen.print("Autonomous Finished Cleanly.")
 
 run_autonomous()`;
-    } else {
+    } else if (vexLanguage === "cpp") {
       return `// VEXcode IQ - C++ Competition Template
 #include "vex.h"
 using namespace vex;
